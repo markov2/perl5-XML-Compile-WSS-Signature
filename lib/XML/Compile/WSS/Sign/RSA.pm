@@ -134,7 +134,7 @@ sub publicKey(;$)
       : $token->isa('Crypt::OpenSSL::X509')
       ? Crypt::OpenSSL::RSA->new_public_key($token->pubkey)
       : error __x"unsupported public key `{token}' for check RSA"
-           , token => $token;
+          , token => $token;
 }
 
 =method publicKeyString 'PKCS1'|'X509'
@@ -215,6 +215,5 @@ constant for that in the standards.
 =back
 
 =cut
-
 
 1;

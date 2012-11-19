@@ -6,7 +6,7 @@ package XML::Compile::WSS::SecToken;
 use Log::Report 'xml-compile-wss-sig';
 
 use XML::Compile::WSS::Util   qw/XTP10_X509v3 WSU_10 WSM10_BASE64/;
-use MIME::Base64              qw/decode_base64/;
+use MIME::Base64              qw/decode_base64 encode_base64/;
 
 =chapter NAME
 XML::Compile::WSS::SecToken - Base for WSS Security Tokens

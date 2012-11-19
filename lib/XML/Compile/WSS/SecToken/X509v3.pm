@@ -109,7 +109,6 @@ sub certificate() {shift->{XCWSX_cert}}
 sub asBinary()
 {   my $self = shift;
     my $cert = $self->certificate;
-#XXX MO: include as string?
     ( WSM10_BASE64, encode_base64 $cert->as_string(FORMAT_ASN1));
 }
 

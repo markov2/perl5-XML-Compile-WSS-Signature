@@ -4,8 +4,6 @@ use strict;
 package XML::Compile::WSS::Signature;
 use base 'XML::Compile::WSS';
 
-my %canon;  #to be removed
-my %keywraps;  #to be removed
 use Log::Report 'xml-compile-wss-sig';
 
 use XML::Compile::WSS::Util     qw/:wss11 :wsm10 :dsig :xtp10/;
@@ -16,10 +14,6 @@ use XML::Compile::WSS::Sign     ();
 
 use Digest          ();
 use XML::LibXML     ();
-use HTTP::Response  ();
-use MIME::Base64    qw/decode_base64 encode_base64/;
-use File::Slurp     qw/read_file/;
-use Scalar::Util    qw/blessed/;
 use File::Basename  qw/dirname/;
 
 my $unique = $$.time;
@@ -297,14 +291,14 @@ is one of the C14N* constants defined in M<XML::Compile::C14N::Util>.
 
 sub applyCanon($$$)
 {   my ($self, $algo, $elem, $prefixlist) = @_;
-    $self->c14n->normalize($algo, $elem, prefixlist => $prefixlist);
+    $self->c14n->normalize($algo, $elem, prefix_list => $prefixlist);
 }
 
 # XML::Compile has to trick with prefixes, because XML::LibXML does not
 # permit the creation of nodes with explicit prefix, only by namespace.
 # The next can be slow and is ugly, Sorry.  MO
-sub _repair_xml($$)
-{   my ($self, $xc_out_dom) = @_;
+sub _repair_xml($$@)
+{   my ($self, $xc_out_dom, @prefixes) = @_;
 
     # only doc element does charsets correctly
     my $doc    = $xc_out_dom->ownerDocument;
@@ -312,15 +306,16 @@ sub _repair_xml($$)
     # building bottom up: be sure we have all namespaces which may be
     # declared later, on higher in the hierarchy.
     my $env    = $doc->createElement('Dummy');
-    my $prefixes = $self->schema->prefixes;
-    $env->setNamespace($_->{uri}, $_->{prefix}, 0)
-        for values %$prefixes;
+    my $schema = $self->schema;
+    $env->setNamespace($schema->prefix($_)->{uri}, $_, 0)
+        for @prefixes;
 
     # reparse tree
     $env->addChild($xc_out_dom);
     my $fixed_dom = XML::LibXML->load_xml(string => $env->toString(0));
     my $new_out   = ($fixed_dom->documentElement->childNodes)[0];
     $doc->importNode($new_out);
+#warn $new_out->toString(1);
     $new_out;
 }
 
@@ -601,11 +596,7 @@ sub _fill_signed_info()
     my $signmeth  = $self->signer->type;
 
     my $digest    = $self->defaultDigestMethod;
-    my $do_digest = $self->digester($digest);
-    my $digester  = sub {
-        my $node = shift;
-        $do_digest->(\$canonical->($self->_repair_xml($node)));
-    };
+    my $digester  = $self->digester($digest);
 
     sub {
         my ($doc, $parts) = @_;
@@ -621,10 +612,11 @@ sub _fill_signed_info()
               , cho_any => [ {$incns => $incns_make->($doc)} ]
               };
     
+            my $repaired = $self->_repair_xml($part->{node}, qw/wsu SOAP-ENV/);
             push @refs,
              +{ URI             => '#'.$part->{id}
               , ds_Transforms   => { ds_Transform => [$transform] }
-              , ds_DigestValue  => $digester->($part->{node})
+              , ds_DigestValue  => $digester->(\$canonical->($repaired))
               , ds_DigestMethod => { Algorithm => $digest }
               };
         }
@@ -659,7 +651,7 @@ sub prepareWriting($)
         my ($doc, $sec) = @_;
         return $sec if $sec->{$sigt};
         my $info      = $fill_signed_info->($doc, $self->elementsToSign);
-        my $info_node = $self->_repair_xml($infow->($doc, $info));
+        my $info_node = $self->_repair_xml($infow->($doc, $info), 'SOAP-ENV');
         my $signature = $signer->sign(\$canonical->($info_node));
 #warn "Sign %3 ",$canonical->($info_node);
 
