@@ -20,9 +20,9 @@ my $unique = $$.time;
 my @default_canon_ns = qw/ds wsu xenc SOAP-ENV/;
 my @prefixes = (dsig11 => DSIG11_NS, dsp => DSP_NS, dsigm => DSIG_MORE_NS);
 
-use Data::Dumper;
-$Data::Dumper::Indent    = 1;
-$Data::Dumper::Quotekeys = 0;
+#use Data::Dumper;
+#$Data::Dumper::Indent    = 1;
+#$Data::Dumper::Quotekeys = 0;
 
 my ($digest_algorithm, $sign_algorithm);
 {  my ($signs, $sigmns) = (DSIG_NS, DSIG_MORE_NS);

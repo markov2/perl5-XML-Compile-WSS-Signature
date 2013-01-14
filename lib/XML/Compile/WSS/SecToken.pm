@@ -59,7 +59,7 @@ sub new(@)
     my $args  = @_==1 ? shift : {@_};
     my $type  = delete $args->{type} || XTP10_X509v3;
     if($class eq __PACKAGE__)
-    {   if($type eq XTP10_X509v3)
+    {   if($type =~ /509/)
         {   eval "require XML::Compile::WSS::SecToken::X509v3"; panic $@ if $@;
             $class = 'XML::Compile::WSS::SecToken::X509v3';
         }
@@ -77,15 +77,20 @@ sub init($)
     $self;
 }
 
-=c_method fromConfig [CONFIG]
+=c_method fromConfig CONFIG, OPTIONS
 Try to be very flexible.  CONFIG can be a HASH, which could also be
 passed to M<new()> directly.  But it can also be various kinds of
 objects.
+
+=option  type CONSTANT
+=default type XTP10_X509v3
+[1.07] the type of the security token.
 =cut
 
-sub fromConfig($)
-{   my ($class, $config) = @_;
-    return $class->new($config)
+sub fromConfig($%)
+{   my ($class, $config, %args) = @_;
+    $args{type} ||= XTP10_X509v3;
+    return $class->new(%$config, %args)
         if ref $config eq 'HASH';
 
     blessed $config
@@ -94,7 +99,7 @@ sub fromConfig($)
     return $config
         if $config->isa(__PACKAGE__);
 
-    return $class->new(type => XTP10_X509v3, certificate => $config)
+    return $class->new(%args, certificate => $config)
         if ref $config =~ m/::X509/;  # there are a few options here
 
     panic "token configuration `$config' not recognized";
@@ -107,6 +112,7 @@ produced by the M<XML::Compile> reader, to a security token.
 
 sub fromBinSecToken($$)
 {   my ($class, $wss, $data) = @_;
+    my $id  = $data->{wsu_Id};
     my $key = $data->{_};
     my $enc = $data->{EncodingType};
 
@@ -114,7 +120,7 @@ sub fromBinSecToken($$)
     elsif($enc eq WSM10_BASE64) { $key = decode_base64 $key }
     else {error __x"unsupported data encoding {type} received", type => $enc}
 
-    $class->new(type => $data->{ValueType}, binary => $key);
+    $class->new(id => $id, type => $data->{ValueType}, binary => $key);
 }
 
 #-----------------

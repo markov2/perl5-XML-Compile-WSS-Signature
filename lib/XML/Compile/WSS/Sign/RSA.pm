@@ -84,7 +84,7 @@ sub privateKey(;$)
 
     my ($key, $rsa);
     if(blessed $priv && $priv->isa('Crypt::OpenSSL::RSA'))
-    {   ($key, $rsa) = ($rsa->get_private_key_string, $priv);
+    {   ($key, $rsa) = ($priv->get_private_key_string, $priv);
     }
     elsif(ref $priv)
     {   error __x"unrecognized private key object `{object}'", object => $priv;
@@ -164,7 +164,7 @@ sub sign(@)
 {   my ($self, $reftext) = @_;
     my $priv = $self->privateKeyRSA
         or error "signing rsa requires the private_key";
-    $priv->sign($reftext);
+    $priv->sign($$reftext);
 }
 
 =method check ref-BYTES, SIGNATURE
