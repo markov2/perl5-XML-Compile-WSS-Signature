@@ -86,8 +86,8 @@ sub privateKey(;$)
     if(blessed $priv && $priv->isa('Crypt::OpenSSL::RSA'))
     {   ($key, $rsa) = ($priv->get_private_key_string, $priv);
     }
-    elsif(ref $priv)
-    {   error __x"unrecognized private key object `{object}'", object => $priv;
+    elsif(ref $priv =~ m/Crypt/)
+    {   error __x"unsupported private key object `{object}'", object => $priv;
     }
     elsif(index($priv, "\n") >= 0)
     {   ($key, $rsa) = ($priv, Crypt::OpenSSL::RSA->new_private_key($priv));

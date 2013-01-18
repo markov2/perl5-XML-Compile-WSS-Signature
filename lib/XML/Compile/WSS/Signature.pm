@@ -441,12 +441,12 @@ sub signElement(%)
     $node;
 }
 
-=method elementsToSign
+=method takeElementsToSign
 Returns an ARRAY of all NODES which need to be signed.  This will
 also reset the administration.
 =cut
 
-sub elementsToSign() { delete shift->{XCWS_to_sign} || [] }
+sub takeElementsToSign() { delete shift->{XCWS_to_sign} || [] }
 
 =method checkElement ELEMENT
 Register the ELEMENT to be checked for correct signature.
@@ -649,8 +649,9 @@ sub prepareWriting($)
 
     $self->{XCWS_sign} = sub {
         my ($doc, $sec) = @_;
-        return $sec if $sec->{$sigt};
-        my $info      = $fill_signed_info->($doc, $self->elementsToSign);
+        my $to_sign   = $self->takeElementsToSign;
+        return $sec if $sec->{$sigt};           # signature already produced?
+        my $info      = $fill_signed_info->($doc, $to_sign);
         my $info_node = $self->_repair_xml($infow->($doc, $info), 'SOAP-ENV');
         my $signature = $signer->sign(\$canonical->($info_node));
 #warn "Sign %3 ",$canonical->($info_node);
