@@ -548,7 +548,6 @@ sub prepareReading($)
             my $token    = $self->_get_sec_token($sec, $sig);
             $checker     = $self->_get_signer($sig_meth, $token);
         }
-#warn "#3 $si_canon";
         $checker->check(\$si_canon, $sig->{ds_SignatureValue}{_})
 #           or error __x"signature on SignedInfo incorrect";
             or warning __x"signature on SignedInfo incorrect";
