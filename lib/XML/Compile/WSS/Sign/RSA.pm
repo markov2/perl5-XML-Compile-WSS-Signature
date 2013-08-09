@@ -31,13 +31,10 @@ XML::Compile::WSS::Sign::RSA - WSS Signing with RSA
 =section Constructors
 
 =c_method new OPTIONS
-=option  hashing STRING
-=default hashing <derived from type>
-For instance, C<SHA1>.
 
 =option  private_key OBJECT|STRING|FILENAME
 =default private_key C<undef>
-Required if you want to use this object to M<sign()>. See M<privateKey()>
+Required if you want to use this object to sign. See M<privateKey()>
 
 =option  public_key  OBJECT|STRING|FILENAME
 =default public_key  <from private key>
@@ -46,65 +43,94 @@ Usually, you need either the public or the private key, not both.  However,
 when you specify a private key, you can ask for the public key as well: it
 is included.
 
+=option  hashing 'SHA1'|'MD5'|...
+=default hashing <undef>
+
+=option  padding 'NO'|'PKCS1'|...
+=default padding <undef>
+
 =cut
 
 sub init($)
 {   my ($self, $args) = @_;
     $self->SUPER::init($args);
-    $self->privateKey($args->{private_key}, $args->{hashing})
-        if $args->{private_key};
 
+    $self->privateKey
+      ( $args->{private_key}
+      , hashing => $args->{hashing}
+      , padding => $args->{padding}
+      );
+    
     $self->publicKey($args->{public_key});
     $self;
 }
 
 #-----------------
 =section Attributes
-=method hashing
 =cut
 
-sub hashing() {shift->{XCWSR_hash}}
-
-=method privateKey [KEY, [HASHING]]
+=method privateKey [KEY, OPTIONS]
 The private key must be set with M<new(private_key)> or this method before
-you can M<sign()>.  This method will return the text of the key.
+you can sign.  This method will return the text of the key.
 =over 4
 =item * an M<Crypt::OpenSSL::RSA> object
 =item * PEM formatted key, as accepted by M<Crypt::OpenSSL::RSA> method C<new_private_key()>
 =item * a filename which contains such bytes.
 =back
 
+=option  hashing 'SHA1'|'MD5'|'RIPEMD160'|...
+=default hashing <undef>
+Enforce an hashing setting on the KEY.
+
+=option  padding 'NO'|'PKCS1'|'PKCS1_OAEP'|'SSLv23'
+=default padding <undef>
 =cut
 
-sub privateKey(;$)
-{   my $self    = shift;
-    @_ or return $self->{XCWSR_privkey};
-    my $priv    = shift;
-    my $hashing = shift || 'SHA1';
+sub privateKey(;$%)
+{   my ($self, $priv, %args) = @_;
+    defined $priv or return $self->{XCWSR_privkey};
 
-    my ($key, $rsa);
-    if(blessed $priv && $priv->isa('Crypt::OpenSSL::RSA'))
-    {   ($key, $rsa) = ($priv->get_private_key_string, $priv);
-    }
-    elsif(ref $priv =~ m/Crypt/)
-    {   error __x"unsupported private key object `{object}'", object => $priv;
-    }
-    elsif(index($priv, "\n") >= 0)
-    {   ($key, $rsa) = ($priv, Crypt::OpenSSL::RSA->new_private_key($priv));
-    }
-    else
-    {   $key = read_file $priv;
-        $rsa = Crypt::OpenSSL::RSA->new_private_key($key);
+    my ($key, $rsa) = $self->toPrivateSHA($priv);
+
+    if(my $hashing = $args{hashing})
+    {   my $use_hash = "use_\L$hashing\E_hash";
+        $rsa->can($use_hash)
+            or error __x"hash {type} not supported by {pkg}"
+                , type => $hashing, pkg => ref $key;
+        $rsa->$use_hash();
     }
 
-    my $use_hash = "use_\L$hashing\E_hash";
-    $rsa->can($use_hash)
-        or error __x"hash {type} not supported by {pkg}"
-            , type => $hashing, pkg => ref $key;
-    $rsa->$use_hash();
+    if(my $padding = $args{padding})
+    {   my $use_pad = "use_\L$padding\E_padding";
+        $rsa->can($use_pad)
+            or error __x"padding {type} not supported by {pkg}"
+                , type => $padding, pkg => ref $key;
+        $rsa->$use_pad();
+    }
 
     $self->{XCWSR_privrsa} = $rsa;
     $self->{XCWSR_privkey} = $key;
+    $key;
+}
+
+=ci_method toPrivateSHA PRIVATE-KEY
+=cut
+
+sub toPrivateSHA($)
+{   my ($self, $priv) = @_;
+
+    return ($priv->get_private_key_string, $priv)
+        if blessed $priv && $priv->isa('Crypt::OpenSSL::RSA');
+
+    error __x"unsupported private key object `{object}'", object=>$priv
+       if ref $priv =~ m/Crypt/;
+
+    return ($priv, Crypt::OpenSSL::RSA->new_private_key($priv))
+        if index($priv, "\n") >= 0;
+
+    my $key = read_file $priv;
+    my $rsa = Crypt::OpenSSL::RSA->new_private_key($key);
+    ($key, $rsa);
 }
 
 =method privateKeyRSA
@@ -123,18 +149,36 @@ Set the public key.  You can pass a KEY, which is one of
 =cut
 
 sub publicKey(;$)
-{   my $self = shift;
-    @_ or return $self->{XCWSR_pubkey};
+{   my ($self, $pub) = @_;
+    return $self->{XCWSR_pubkey} if !defined $pub && $self->{XCWSR_pubkey};
+    my $token = $pub || $self->privateKeyRSA;
 
-    my $token = $self->{XCWSR_pubkey} = shift || $self->privateKeyRSA;
-    $self->{XCWSR_pubrsa}
-      = $token->isa('Crypt::OpenSSL::RSA') ? $token
-      : $token->isa('XML::Compile::WSS::SecToken::X509v3')
-      ? Crypt::OpenSSL::RSA->new_public_key($token->certificate->pubkey)
-      : $token->isa('Crypt::OpenSSL::X509')
-      ? Crypt::OpenSSL::RSA->new_public_key($token->pubkey)
-      : error __x"unsupported public key `{token}' for check RSA"
-          , token => $token;
+    $self->{XCWSR_pubrsa} = $self->toPublicRSA($token);
+    $self->{XCWSR_pubkey} = $pub;
+    $pub;
+}
+
+=ci_method toPublicRSA OBJECT
+=cut
+
+sub toPublicRSA($)
+{   my ($thing, $token) = @_;
+    defined $token or return;
+
+    blessed $token
+        or panic "expects a public_key as object, not ".$token;
+
+    return $token
+        if $token->isa('Crypt::OpenSSL::RSA');
+
+    $token = $token->certificate
+        if $token->isa('XML::Compile::WSS::SecToken::X509v3');
+
+    return Crypt::OpenSSL::RSA->new_public_key($token->pubkey)
+        if $token->isa('Crypt::OpenSSL::X509');
+
+    error __x"unsupported public key `{token}' for check RSA"
+      , token => $token;
 }
 
 =method publicKeyString 'PKCS1'|'X509'
@@ -160,31 +204,59 @@ sub publicKeyRSA() {shift->{XCWSR_pubrsa}}
 =section Handlers
 =cut
 
+# Do we need next 4?  Probably not
+
 sub sign(@)
-{   my ($self, $reftext) = @_;
+{   my ($self, $text) = @_;
     my $priv = $self->privateKeyRSA
         or error "signing rsa requires the private_key";
-    $priv->sign($$reftext);
+
+    $priv->sign($text);
 }
 
-=method check ref-BYTES, SIGNATURE
-Use TOKEN to check whether the BYTES (passed by reference) match the
-SIGNATURE.
+sub encrypt(@)
+{   my ($self, $text) = @_;
+    my $pub = $self->publicKeyRSA
+        or error "encrypting rsa requires the public_key";
+    $pub->encrypt($text);
+}
 
-For RSA signing, the token can be
-=over 4
-=item * a M<Crypt::OpenSSL::RSA> object
-=item * a M<Crypt::OpenSSL::X509> object
-=item * a M<XML::Compile::WSS::SecToken::X509v3> object
-=back
+sub decrypt(@)
+{   my ($self, $text) = @_;
+    my $priv = $self->privateKeyRSA
+        or error "decrypting rsa requires the private_key";
+    $priv->decrypt($text);
+}
+
+=method check BYTES, SIGNATURE
 =cut
 
 sub check($$)
-{   my ($self, $reftext, $signature) = @_;
+{   my ($self, $text, $signature) = @_;
     my $rsa = $self->publicKeyRSA
         or error "checking signature with rsa requires the public_key";
 
-    $rsa->verify($$reftext, $signature);
+    $rsa->verify($text, $signature);
+}
+
+### above functions probably not needed.
+
+sub builder()
+{   my ($self) = @_;
+    my $priv   = $self->privateKeyRSA
+        or error "signing rsa requires the private_key";
+
+    sub { $priv->sign($_[0]) };
+}
+
+sub getCheck()
+{   my ($self) = @_;
+    my $pub = $self->publicKeyRSA
+        or error "checking signature with rsa requires the public_key";
+
+    sub { # ($text, $sigature)
+        $pub->verify($_[0], $_[1]);
+    };
 }
 
 #-----------------

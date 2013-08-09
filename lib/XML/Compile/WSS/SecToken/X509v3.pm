@@ -6,12 +6,10 @@ use base 'XML::Compile::WSS::SecToken';
 
 use Log::Report 'xml-compile-wss-sig';
 
-use XML::Compile::WSS::Util qw/XTP10_X509v3 WSM10_BASE64/;
+use XML::Compile::WSS::Util qw/XTP10_X509v3/;
 
-use MIME::Base64         qw/decode_base64 encode_base64/;
 use Scalar::Util         qw/blessed/;
 use Crypt::OpenSSL::X509 qw/FORMAT_ASN1 FORMAT_PEM/;
-use Crypt::OpenSSL::RSA  ();
 
 =chapter NAME
 XML::Compile::WSS::SecToken::X509v3 - WSS Security Token X509v3 style
@@ -53,11 +51,13 @@ See F<docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0.pd
 
 =c_method new OPTIONS
 Either the C<certificate> object or a C<cert_file> must be specified.
+
 =default type XTP10_X509v3
 
 =option  certificate CERTIFICATE
 =default certificate C<undef>
 
+=default fingerprint <from certificate>
 =cut
 
 sub init($)
@@ -65,7 +65,6 @@ sub init($)
     $args->{cert_file} and panic "removed in 1.07, use fromFile()";
 
     $args->{type} ||= XTP10_X509v3;
-    $self->SUPER::init($args);
 
     my $cert;
     if($cert = $args->{certificate}) {}
@@ -76,7 +75,11 @@ sub init($)
     blessed $cert && $cert->isa('Crypt::OpenSSL::X509')
         or error __x"X509 certificate object not supported (yet)";
 
-    $self->{XCWSX_cert} = $cert;
+    $args->{name}        ||= $cert->subject;
+    $args->{fingerprint} ||= $cert->fingerprint_sha1;
+    $self->SUPER::init($args);
+
+    $self->{XCWSX_cert}    = $cert;
     $self;
 }
 
@@ -109,17 +112,16 @@ sub fromFile($%)
 
 #------------------------
 =section Attributes
+
 =method certificate
 =cut
 
 sub certificate() {shift->{XCWSX_cert}}
 
 #------------------------
+=section Handlers
+=cut
 
-sub asBinary()
-{   my $self = shift;
-    my $cert = $self->certificate;
-    ( WSM10_BASE64, encode_base64($cert->as_string(FORMAT_ASN1),'') );
-}
+sub asBinary() {shift->certificate->as_string(FORMAT_ASN1)}
 
 1;

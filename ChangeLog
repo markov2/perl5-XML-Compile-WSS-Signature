@@ -1,11 +1,21 @@
 
 ==== version history of XML::Compile:WSS::Signature
 
-version 1.10:
+version 2.00_01: Sat Aug 10 01:05:34 CEST 2013
+	Fixes:
+	- follow changes in XML::Compile::WSS 1.08
+
+	Improvements:
+	- too many to mention!  Close to full rework.
 
 version 1.09:
 	Fixes:
 	- receive messages without PrefixList  [Karen Etheridge]
+	- token and private_key configuration is optional: report errors
+	  lazy.
+
+	Improvements:
+	- use ::Cache::addPrefixes()
 
 version 1.08: Fri Jan 18 13:37:45 CET 2013
 	Changes:

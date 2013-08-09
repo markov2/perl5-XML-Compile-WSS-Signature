@@ -5,8 +5,8 @@ package XML::Compile::WSS::SecToken;
 
 use Log::Report 'xml-compile-wss-sig';
 
-use XML::Compile::WSS::Util   qw/XTP10_X509v3 WSU_10 WSM10_BASE64/;
-use MIME::Base64              qw/decode_base64 encode_base64/;
+use XML::Compile::WSS::Util   qw/XTP10_X509v3 WSU_10 :wsm10 :wsm11 XENC_NS/;
+use Scalar::Util   qw/blessed/;
 
 =chapter NAME
 XML::Compile::WSS::SecToken - Base for WSS Security Tokens
@@ -26,12 +26,12 @@ XML::Compile::WSS::SecToken - Base for WSS Security Tokens
 =section Supported token types
 =over 4
 =item * X509v3, see M<XML::Compile::WSS::SecToken::X509v3>
+=item * An encrypted key, for instance to be used for hmac-rsa, implemented in M<XML::Compile::WSS::SecToken::EncrKey>
 =back
 
 =section Not supporter (yet)
 
 Other token types, found in the documentation, but not (yet) supported:
-
 =over 4
 =item * LTPA: Lightweight Third Party Authentication (version 1)
 =item * LTPAv2: Lightweight Third Party Authentication version 2
@@ -52,6 +52,17 @@ Hire me to implement these!
 
 =option   binary BYTES
 =default  binary C<undef>
+
+=option   fingerprint STRING
+=default  fingerprint C<undef>
+STRING format like C<C8:AE:B1:25:  :24:00:7A:82:F2>.  A bit weird that
+this gets base64 encoded as well.
+
+=option    uri   NAME
+=default   uri   <unique>
+
+=option    encoding WSM10*
+=default   encoding WSM10_BASE64
 =cut
 
 sub new(@)
@@ -60,20 +71,24 @@ sub new(@)
     my $type  = delete $args->{type} || XTP10_X509v3;
     if($class eq __PACKAGE__)
     {   if($type =~ /509/)
-        {   eval "require XML::Compile::WSS::SecToken::X509v3"; panic $@ if $@;
-            $class = 'XML::Compile::WSS::SecToken::X509v3';
+        {   $class = 'XML::Compile::WSS::SecToken::X509v3';
         }
         else
         {   error __x"security token type {type} not (yet) supported"
               , type => $type;
         }
+        eval "require $class"; panic $@ if $@;
     }
     (bless {XCWS_type => $type}, $class)->init($args);
 }
 
 sub init($)
 {   my ($self, $args) = @_;
-    $self->{XCWS_id} = $args->{id} || 'my-token';
+    $self->{XCWS_id}   = $args->{id}       || 'my-token';
+    $self->{XCWS_enc}  = $args->{encoding} || WSM10_BASE64;
+    $self->{XCWS_fp}   = $args->{fingerprint};
+    $self->{XCWS_uri}  = $args->{uri}      || 'TOKEN-'.($self+0);
+    $self->{XCWS_name} = $args->{name};
     $self;
 }
 
@@ -90,6 +105,7 @@ objects.
 sub fromConfig($%)
 {   my ($class, $config, %args) = @_;
     $args{type} ||= XTP10_X509v3;
+
     return $class->new(%$config, %args)
         if ref $config eq 'HASH';
 
@@ -105,76 +121,29 @@ sub fromConfig($%)
     panic "token configuration `$config' not recognized";
 }
 
-=c_method fromBinSecToken WSS, DATA
-Convert the information of a binary security token, where DATA is
-produced by the M<XML::Compile> reader, to a security token.
-=cut
-
-sub fromBinSecToken($$)
-{   my ($class, $wss, $data) = @_;
-    my $id  = $data->{wsu_Id};
-    my $key = $data->{_};
-    my $enc = $data->{EncodingType};
-
-    if(!$enc) {}
-    elsif($enc eq WSM10_BASE64) { $key = decode_base64 $key }
-    else {error __x"unsupported data encoding {type} received", type => $enc}
-
-    $class->new(id => $id, type => $data->{ValueType}, binary => $key);
-}
-
 #-----------------
 =section Attributes
 =method id
 =method type
+=method encoding
+
+=method fingerprint
 =cut
 
-sub id()   {shift->{XCWS_id}}
-sub type() {shift->{XCWS_type}}
+sub id()       {shift->{XCWS_id}}
+sub type()     {shift->{XCWS_type}}
+sub encoding() {shift->{XCWS_enc}}
+
+sub fingerprint{shift->{XCWS_fp}}
+sub uri()      {shift->{XCWS_uri}}
+sub name()     {shift->{XCWS_name}}
 
 #-----------------
 =section Handlers
 
-=method makeBinSecTokenWriter WSS
-Returns a CODE which is used to produced a BinarySecurityToken child for
-the Security header.
-=cut
-
-sub makeBinSecTokenWriter($)
-{   my ($self, $wss) = @_;
-    my $version = $wss->version; 
-    $version eq '1.1'
-        or error __x"tokens for version {version} not (yet) supported"
-            , version => $version;
-
-    my $schema = $wss->schema;
-    my $ctt    = $schema->findName('wsse:BinarySecurityToken');
-    my $ctw    = $schema->writer($ctt, include_namespaces => 0);
-
-    my ($enc, $data) = $self->asBinary;
-    my %info   =
-      ( EncodingType => $enc
-      , ValueType    => $self->type
-      , _            => $data
-      );
-    my $id  = $self->id;
-
-    sub ($$) {
-       my ($doc, $sec) = @_;
-       my $ct = $ctw->($doc, \%info);
-       $ct->setNamespace(WSU_10, 'wsu', 0);
-       $ct->setAttributeNS(WSU_10, 'Id', $id);
-       $sec->{$ctt} = $ct;
-    }
-}
-
 =method asBinary
-Returns the token information, to be used in a "BinarySecurityToken"
-object.  Returned is the EncodingType used (may be undef) and the
-encoded data as by preference of the token type.
+If implemented, this token can be included as "BinarySecurityToken"
 =cut
-
-sub asBinary {panic "needs to be extended"}
 
 1;
 
