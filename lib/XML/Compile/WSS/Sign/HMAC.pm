@@ -72,7 +72,7 @@ sub builder(@)
     };
 }
 
-sub getCheck($$)
+sub checker($$)
 {   my ($self) = @_;
     my $key    = $self->key;
 

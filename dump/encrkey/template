@@ -2,7 +2,7 @@
 #     {http://www.w3.org/2001/04/xmlenc#}EncryptedKey
 #
 # Produced by XML::Compile::Translate::Template version undef
-#          on Sat Aug 10 01:02:41 2013
+#          on Wed Sep 18 15:54:14 2013
 #
 # BE WARNED: in most cases, the example below cannot be used without
 # interpretation.  The comments will guide you.
@@ -233,7 +233,7 @@
         # is a ds:TransformType
         # complex structure shown above
         # occurs 1 <= # <= unbounded times
-        ds_Transform => {}, },
+        ds_Transform => [{},], },
 
       # is a xsd:anyURI
       # attribute URI is required

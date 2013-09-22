@@ -21,7 +21,6 @@ use File::Basename  qw/dirname/;
 use File::Glob      qw/bsd_glob/;
 use Scalar::Util    qw/blessed/;
 
-my $unique = $$.time;
 my %prefixes =
   ( # ds=DSIG_NS defined in ::WSS
     dsig11 => DSIG11_NS
@@ -131,6 +130,11 @@ the signature, not the one listed in the XML response.
 Only when this C<remote_token> is specified, we will require the
 signature.  Otherwise, the check of the signature will only be performed
 when a Signature is available in the Security header.
+
+=requires sign_types ARRAY
+Specify the types of elements which need to be signed.  If you
+have more elements of the same type, they will all get signed.
+
 =cut
 
 sub init($)
@@ -141,35 +145,34 @@ sub init($)
 
     my $signer  = delete $args->{signer} || {};
     blessed $signer || ref $signer
-        or $signer = { sign_method => $signer };             # pre 2.00
+        or $signer  = { sign_method => $signer };            # pre 2.00
     $signer->{$_} ||= delete $args->{$_}                     # pre 2.00
         for qw/private_key/;
-    $self->{XCWS_signer} = XML::Compile::WSS::Sign
+    $self->{XCWS_signer}  = XML::Compile::WSS::Sign
       ->fromConfig(%$signer, wss => $self);
 
     my $si      = delete $args->{signed_info} || {};
     $si->{$_} ||= delete $args->{$_}
         for qw/digest_method cannon_method prefix_list/;     # pre 2.00
 
-    $self->{XCWS_siginfo}  = XML::Compile::WSS::SignedInfo
+    $self->{XCWS_siginfo} = XML::Compile::WSS::SignedInfo
       ->fromConfig(%$si, wss => $self);
 
     my $ki      = delete $args->{key_info} || {};
     $ki->{$_} ||= delete $args->{$_}
         for qw/publish_token/;                               # pre 2.00
 
-    $self->{XCWS_keyinfo}  = XML::Compile::WSS::KeyInfo
+    $self->{XCWS_keyinfo} = XML::Compile::WSS::KeyInfo
       ->fromConfig(%$ki, wss => $self);
 
     if(my $subsig = delete $args->{signature})
-    {   $self->{XCWS_subsig}  = (ref $self)->new(wss_version => $wss_v
+    {   $self->{XCWS_subsig} = (ref $self)->new(wss_version => $wss_v
           , schema => $self->schema, %$subsig);
     }
 
-    $self->{XCWS_token}   = $args->{token}
-        or error __x"we need a token";
+    $self->{XCWS_token}    = $args->{token};
 
-    $self->{XCWS_config}  = $args;  # the left-overs are for me
+    $self->{XCWS_config}   = $args;  # the left-overs are for me
     $self;
 }
 
@@ -214,27 +217,101 @@ sub prepareReading($)
     if(my $r   = $config->{remote_token})
     {   $self->{XCWS_rem_token} = XML::Compile::WSS::SecToken->fromConfig($r);
     }
-  
-    my $checker   = $self->signedInfo->checker;
-    my $get_token = $self->keyInfo->getTokens;
-    $self->{XCWS_reader} = sub {
-        my $sec   = shift;
 
-        my $sig  = $sec->{ds_Signature};
-        unless($sig)
-        {   # When the signature is missing, we only die if we expect one
-            $self->checker or return;
-            error __x"requires signature block missing from remote";
+    my @elems_to_check;
+    $schema->addHook
+      ( action => 'READER'
+      , type   =>  ($config->{sign_types} or panic)
+      , before => sub {
+          my ($node, $path) = @_;
+          push @elems_to_check, $node;
+          $node;
         }
+      );
 
-        my $ki_info = $sig->{ds_KeyInfo}    || {};
-        my ($token) = $get_token->($ki_info, $sec);
+    # we need the unparsed node to canonicalize and check
+    $schema->addHook(action => 'READER', type => 'ds:SignedInfoType'
+      , after => 'XML_NODE');
 
-        my $si_info = $sig->{ds_SignedInfo} || {};
-        $checker->($si_info, $token);
-    };
+    # collect the elements to check, while decoding them
+    my ($container, @signature_elems);
+    $schema->addHook
+      ( action => 'READER'
+      , type   => ($config->{sign_put} || panic)
+      , after  => sub {
+          my ($xml, $data, $path) = @_;
+#warn "Located signature at $path";
+          push @signature_elems, $data->{ds_Signature}
+              if $data->{ds_Signature};
+          $container = $data;
+          $data;
+        }
+      );
+
+    my $check_signature = $self->checker;
+    $schema->addHook
+      ( action => 'READER'
+      , type   => ($config->{sign_when} || panic)
+      , after  => sub {
+          my ($xml, $data, $path) = @_;
+#warn "Checking signatures when at $path";
+          @signature_elems
+              or error __x"signature element not found in answer";
+
+          $check_signature->($container, $_, \@elems_to_check)
+              for @signature_elems;
+
+          @elems_to_check  = ();
+          @signature_elems = ();
+          $data;
+        }
+      );
 
     $self;
+}
+
+# The checker routines throw an exception or error
+sub checker($@)
+{   my $self   = shift;
+    my $config = $self->{XCWS_config};
+    my %args   = (%$config, @_);
+
+    my $si         = $self->signedInfo;
+    my $si_checker = $si->checker($self, %args);
+    my $get_tokens = $self->keyInfo->getTokens($self, %args);
+
+    sub {
+        my ($container, $sig, $elems) = @_;
+#use Data::Dumper;
+#warn "CHECKER ", Dumper $elems;
+        my $ki        = $sig->{ds_KeyInfo};
+        my @tokens    = $ki ? $get_tokens->($ki, $container, $sig->{Id}) : ();
+
+        # Hey, you try to get tokens up in the hierachy in a recursive
+        # nested program yourself!
+        $ki->{__TOKENS} = \@tokens;
+
+        ### check the signed-info content
+
+        my $info      = $sig->{ds_SignedInfo};
+        $si_checker->($info, $elems, \@tokens);
+
+        ### Check the signature of the whole block
+
+        my $canon    = $info->{ds_CanonicalizationMethod};
+        my $preflist = $canon->{c14n_InclusiveNamespaces}{PrefixList} || [];
+        my $canonic  = $si->_get_canonic($canon->{Algorithm}, $preflist);
+        my $sigvalue = $sig->{ds_SignatureValue}{_};
+
+        my $signer   = XML::Compile::WSS::Sign->new
+          ( sign_method => $info->{ds_SignatureMethod}{Algorithm}
+          , public_key  => $tokens[0]
+          );
+
+        $signer->checker->($canonic->($info->{_XML_NODE}), $sigvalue)
+            or error __x"received signature value is incorrect";
+
+    };
 }
 
 sub builder(%)
@@ -288,6 +365,62 @@ sub builder(%)
 sub prepareWriting($)
 {   my ($self, $schema) = @_;
     $self->SUPER::prepareWriting($schema);
+
+    $self->token
+        or error __x"creating signatures needs a token";
+
+    my $config = $self->{XCWS_config};
+
+    my @elems_to_sign;
+    $schema->addHook
+      ( action   => 'WRITER'
+      , type     => ($config->{sign_types} or panic)
+      , after    => sub {
+          my ($doc, $xml) = @_;
+
+          unless($xml->getAttributeNS(WSU_10, 'Id'))
+          {   my $wsuid = 'node-'.($xml+0);      # configurable?
+              $xml->setNamespace(WSU_10, wsu => 0);
+              $xml->setAttributeNS(WSU_10, Id => $wsuid);
+
+              # Above two lines do add a xml:wsu per Id.  Below does not,
+              # which is not always enough: elements live in weird places
+              #  my $wsu   = $schema->prefixFor(WSU_10);
+              #  $xml->setAttribute("$wsu:Id", $wsuid);
+          }
+
+#use XML::Compile::Util qw/type_of_node/;
+#warn "Registering to sign ".type_of_node($xml);
+          push @elems_to_sign, $xml;
+          $xml;
+        }
+      );
+
+    my $container;
+    $schema->addHook
+      ( action => 'WRITER'
+      , type   => ($config->{sign_put} || panic)
+      , after  => sub {
+          my ($doc, $xml) = @_;
+#warn "Located signature container";
+          $schema->prefixFor(WSU_10);
+          $container = $xml;
+        }
+      );
+
+    my $add_signature = $self->builder;
+    $schema->addHook
+      ( action => 'WRITER'
+      , type   => ($config->{sign_when} || panic)
+      , after  => sub {
+          my ($doc, $xml) = @_;
+#warn "Creating signature";
+          $add_signature->($doc, \@elems_to_sign, $container);
+          @elems_to_sign = ();
+          $xml;
+        }
+      );
+
     $self;
 }
 
@@ -310,10 +443,6 @@ sub loadSchemas($$)
     $schema->addKeyRewrite("PREFIXED($prefixes)");
 
     $schema->importDefinitions(\@xsds);
-
-    # We need the unparsed node to canonicalize and check
-    $schema->addHook(action => 'READER', type => 'ds:SignedInfoType'
-      , after => 'XML_NODE');
 
     $schema;
 }

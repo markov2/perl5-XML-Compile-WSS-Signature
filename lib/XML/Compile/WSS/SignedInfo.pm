@@ -5,12 +5,16 @@ package XML::Compile::WSS::SignedInfo;
 
 use Log::Report 'xml-compile-wss-sig';
 
-use Digest;
+use Digest::SHA              ();
 use XML::Compile::C14N;
-use XML::Compile::WSS::Util  qw/DSIG_NS DSIG_MORE_NS DSIG_SHA1 WSU_NS/;
-use XML::Compile::C14N::Util qw/:c14n/;
+use XML::Compile::Util       qw/type_of_node/;
+use XML::Compile::WSS::Util  qw/:wss11 :dsig/;
+use XML::Compile::C14N::Util qw/:c14n is_canon_constant/;
 
-my @default_canon_ns = qw/ds wsu xenc SOAP-ENV/;
+# Quite some problems to get canonicalization compatible between
+# client and server.  Especially where some xmlns's are optional.
+# It may help to enforce some namespaces via $wsdl->prefixFor($ns)
+my @default_canon_ns = qw/wsu/;
 
 # There can only be one c14n rule active, because it would otherwise
 # produce a prefix
@@ -119,7 +123,7 @@ sub builder($%)
     my $canon    = $args{canon_method}  || $self->defaultCanonMethod;
     my $preflist = $args{prefix_list}   || $self->defaultPrefixList;
 
-    my $canonic  = $self->_get_canonic($canon, @$preflist);
+    my $canonic  = $self->_get_canonic($canon, $preflist);
     $schema->prefixFor($canon);  # enforce inclusion of c14n namespace
 
     my $digester = $self->_get_digester($digest, $canonic);
@@ -133,7 +137,7 @@ sub builder($%)
 
         my @refs;
         foreach (@$elems)
-        {   my $node  = $cleanup->($_, qw/wsu SOAP-ENV/);
+        {   my $node  = $cleanup->($_, @$preflist);
             my $value = $digester->($node);
 
             my $transform =
@@ -168,29 +172,33 @@ sub builder($%)
 =subsection Digest
 =cut
 
-my $digest_algorithm;
-BEGIN
-{   my ($signs, $sigmns) = (DSIG_NS, DSIG_MORE_NS);
-    # the digest algorithms can be distiguish by pure lowercase, no dash.
-    $digest_algorithm = qr/^(?:\Q$signs\E|\Q$sigmns\E)([a-z0-9]+)$/;
-}
+# the digest algorithms can be distiguish by pure lowercase, no dash.
+my $digest_algorithm =qr/^(?:
+    \Q${\DSIG_NS}\E
+  | \Q${\DSIG_MORE_NS}\E
+  | \Q${\XENC_NS}\E
+  ) ([a-z0-9]+)$
+/x;
 
 sub _get_digester($$)
 {   my ($self, $method, $canonic) = @_;
     $method =~ $digest_algorithm
-        or error __x"digest {name} is not a correct constant", name => $method;
+        or error __x"digest {name} is not supported", name => $method;
     my $algo = uc $1;
 
     sub {
         my $node   = shift;
+#warn "CANONIC=",$canonic->($node),"#";
         my $digest = try
-          { Digest->new($algo)         # Digest objects cannot be reused
+          { Digest::SHA->new($algo)         # Digest objects cannot be reused
              ->add($canonic->($node))
              ->digest                  # becomes base64 via XML field type
           };
+#use MIME::Base64;
+#warn "DIGEST=", encode_base64 $digest;
         $@ or return $digest;
 
-        error __x"cannot use digest method {short}, constant {name}: {err}"
+        error __x"digest method {short} (for {name}): {err}"
           , short => $algo, name => $method, err => $@->wasFatal;
     };
 }
@@ -198,21 +206,46 @@ sub _get_digester($$)
 sub _digest_check($$)
 {   my ($self, $wss) = @_;
 
+    # The horrible reality is that these settings may change per message,
+    # so we cannot keep the knowledge of the previous message.  In practice,
+    # the settings will probably never ever change for an implementation.
     sub {
         my ($elem, $ref) = @_;
-        my $transf    = $ref->{ds_Transforms}{ds_Transform}[0]; # only 1 transf
-        my $preflist  = [];
-        if(my $r = $transf->{cho_any})
-        {   my ($inclns, $preflist) = %{$r->[0]};    # only 1 kv pair
-            $preflist = $preflist->{PrefixList} || [];
+        my $canon    = $self->defaultCanonMethod;
+        my $preflist;   # warning: prefixlist [] ne 'undef'!
+        my @removed;
+        foreach my $transf (@{$ref->{ds_Transforms}{ds_Transform}})
+        {   my $algo = $transf->{Algorithm};
+            if(is_canon_constant $algo)
+            {   $canon   = $algo;
+                if(my $r = $transf->{cho_any})
+                {   my ($inclns, $p) = %{$r->[0]};    # only 1 kv pair
+                    $preflist = $p->{PrefixList};
+                }
+            }
+            elsif($algo eq DSIG_ENV_SIG)
+            {   # enveloped-signature.  $elem is am inside signed object
+                # it must be removed before signing.  However, later we
+                # will use the content of the signature, so we have to
+                # glue it back.
+                push @removed, $elem->removeChild($_)
+                    for $elem->getChildrenByLocalName('Signature');
+            }
+            else
+            {   trace __x"unknown transform algorithm {name} ignored"
+                  , name => $algo;
+            }
         }
-        my $canonmeth = $transf->{Algorithm}    || $self->defaultCanonMethod;
-        my $digmeth   = $ref->{ds_DigestMethod}
-                            ->{Algorithm}       || $self->defaultDigestMethod;
+        my $digmeth   = $ref->{ds_DigestMethod}{Algorithm}
+         || $self->defaultDigestMethod;
 
-        my $canonic   = $self->_get_canonic($canonmeth, @$preflist);
+        my $canonic   = $self->_get_canonic($canon, $preflist);
         my $digester  = $self->_get_digester($digmeth, $canonic);
-        $digester->($elem) eq $ref->{ds_DigestValue};
+#use MIME::Base64;
+#warn "IS? ".$digester->($elem), '==', $ref->{ds_DigestValue};
+        my $correct   = $digester->($elem) eq $ref->{ds_DigestValue};
+        $elem->addChild($_) for @removed;
+        $correct;
     };
 }
 
@@ -229,13 +262,13 @@ The "Digital Signature v1" supports c14n.  DSIG version 2 uses c14n2...
 which is not yet supported.
 =cut
 
-sub _get_canonic($@)
-{   my ($self, $canon, @preflist) = @_;
+sub _get_canonic($$)
+{   my ($self, $canon, $preflist) = @_;
     my $c14n = $self->c14n;
 
     sub
       { my $node = shift or return '';
-        $c14n->normalize($canon, $node, prefix_list => \@preflist);
+        $c14n->normalize($canon, $node, prefix_list => $preflist);
       };
 }
 
@@ -249,6 +282,7 @@ sub _canon_incl($)
 
     sub {
         my ($doc, $preflist) = @_;
+        defined $preflist or return;
         ($type => $inclw->($doc, {PrefixList => $preflist}));
     };
 }
@@ -276,7 +310,7 @@ sub _get_repair_xml($)
             for keys %preftab;
 
         # reparse tree
-        $env->addChild($xc_out_dom->cloneNode);
+        $env->addChild($xc_out_dom->cloneNode(1));
         my $fixed_dom = XML::LibXML->load_xml(string => $env->toString(0));
         my $new_out   = ($fixed_dom->documentElement->childNodes)[0];
         $doc->importNode($new_out);
@@ -284,50 +318,44 @@ sub _get_repair_xml($)
     };
 }
 
-my $checker;
-sub checker($)
-{   my ($self, $wss) = @_;
+sub checker($$$)
+{   my ($self, $wss, %args) = @_;
+    my $check  = $self->_digest_check;
 
     sub {
-        my ($info, $sec, $token)  = @_;
+        my ($info, $elems, $tokens)  = @_;
 
-        $token
-            or error __x"cannot collect token from response";
+        #
+        ### Check digest of the elements
+        #
 
-        # Check signature on SignedInfo
-        my $canon    = $info->{ds_CanonicalizationMethod};
-        my $preflist = $canon->{c14n_InclusiveNamespaces}{PrefixList};
-        my $canonic  = $self->_get_canonic($canon->{Algorithm}, @$preflist);
-        my $si_canon = $self->digester($canonic->($info->{_XML_NODE}));
-
-        unless($checker)
-        {   # We only create the checker once: at the first received
-            # message.  We may need to invalidate it for reuse of this object.
-            my $sig_meth = $info->{ds_SignatureMethod}{Algorithm};
-my $token;
-            $checker     = $self->_get_signer($sig_meth, $token);
-        }
-        $checker->check($si_canon, $info->{ds_SignatureValue}{_})
-#           or error __x"signature on SignedInfo incorrect";
-            or warning __x"signature on SignedInfo incorrect";
-
-        # Check digest of the elements
         my %references;
         foreach my $ref (@{$info->{ds_Reference}})
         {   my $uri = $ref->{URI};
+            $uri    =~ s/^#//;
             $references{$uri} = $ref;
         }
 
-        my $check = $self->elementsToCheck;
-#use Data::Dumper;
-#warn "FOUND: ", Dumper \%references, $info, $check;
-        foreach my $id (sort keys %$check)
-        {   my $node = $check->{$id};
-            my $ref  = delete $references{"#$id"}
-                or error __x"cannot find digest info for {elem}", elem => $id;
-            $self->_digest_elem_check($node, $ref)
-                or warning __x"digest info of {elem} is wrong", elem => $id;
+#warn "FOUND: ", join ';', sort keys %references;
+
+        foreach my $node (@$elems)
+        {   # Sometimes "id" (Signature), sometimes "wsu:Id" (other)
+            my $id  = $node->getAttribute('Id')   # Signature/KeyInfo
+                   || $node->getAttributeNS(WSU_NS, 'Id')
+                   || $node->getAttribute('id')   # SMD::SignedMark
+                or error __x"node to check signature without Id, {type}"
+                    , type => type_of_node $node;
+
+#warn "Id=$id";
+            my $ref = delete $references{$id}
+                or next;  # maybe in other signature block
+
+            $check->($node, $ref)
+                or error __x"digest info of {elem} is wrong", elem => $id;
         }
+
+        error __x"reference {uri} not used", uri => [keys %references]
+            if keys %references;
     };
 }
 

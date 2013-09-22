@@ -30,6 +30,7 @@ lib/XML/Compile/WSS/encr/200104-xenc.xsd
 lib/XML/Compile/WSS/encr/20100513-gh.xsd
 lib/XML/Compile/WSS/encr/20110303-ghc.xsd
 t/01use.t
+t/02templs.t
 t/20any.wsdl
 t/20cert.pem
 t/20privkey.pem

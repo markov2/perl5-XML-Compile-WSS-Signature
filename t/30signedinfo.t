@@ -54,7 +54,7 @@ isa_ok($si, 'XML::Compile::WSS::SignedInfo');
 
 ### Digest
 
-my $canon1 = $si->_get_canonic(C14N_EXC_NO_COMM, qw/wsse SOAP-ENV/);
+my $canon1 = $si->_get_canonic(C14N_EXC_NO_COMM, [ qw/wsse SOAP-ENV/ ]);
 my $dig1   = $si->_get_digester(DSIG_SHA1, $canon1);
 my $ex1    = <<__EXAMPLE1;
 <wsu:top
@@ -83,17 +83,17 @@ isa_ok($info2, 'XML::LibXML::Element');
 is($info2->toString(1)."\n", <<'__EXPECT');
 <ds:SignedInfo xmlns:c14n="http://www.w3.org/2001/10/xml-exc-c14n#" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#">
-    <c14n:InclusiveNamespaces PrefixList="ds wsu xenc SOAP-ENV"/>
+    <c14n:InclusiveNamespaces PrefixList="wsu"/>
   </ds:CanonicalizationMethod>
   <ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#hmac-sha1"/>
   <ds:Reference URI="#TS-1">
     <ds:Transforms>
       <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#">
-        <c14n:InclusiveNamespaces PrefixList="ds wsu xenc SOAP-ENV"/>
+        <c14n:InclusiveNamespaces PrefixList="wsu"/>
       </ds:Transform>
     </ds:Transforms>
     <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
-    <ds:DigestValue>N+NhmSzx4+WjmLGhj8ctMwM+fOg=
+    <ds:DigestValue>gfjDZY969s7O4c0xhK7FxiXN7JM=
 </ds:DigestValue>
   </ds:Reference>
 </ds:SignedInfo>

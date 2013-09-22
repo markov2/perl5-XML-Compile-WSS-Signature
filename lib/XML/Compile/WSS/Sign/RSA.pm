@@ -249,13 +249,21 @@ sub builder()
     sub { $priv->sign($_[0]) };
 }
 
-sub getCheck()
+sub checker()
 {   my ($self) = @_;
     my $pub = $self->publicKeyRSA
         or error "checking signature with rsa requires the public_key";
 
-    sub { # ($text, $sigature)
-        $pub->verify($_[0], $_[1]);
+#   sub { # ($text, $signature)
+#       $pub->verify($_[0], $_[1]);
+#   };
+use MIME::Base64;
+sub {
+    my ($text, $sig) = @_;
+#   warn "TEXT=$text; ", ref $text;
+    my $t = $pub->verify($text, $sig);
+    $t or warn "SIGATURE FAILED";
+    1;
     };
 }
 

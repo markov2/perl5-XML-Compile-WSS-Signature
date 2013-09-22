@@ -83,14 +83,17 @@ write_file 'dump/encrkey/read.dd', Dumper $data;
 $wss->keyInfo->addToken($x509);
 
 my $sec1 = {};
-my $encr = XML::Compile::WSS::SecToken::EncrKey->getEncrypter($wss)->($data, $sec1);
+my $encr = XML::Compile::WSS::SecToken::EncrKey
+  ->getEncrypter($wss)->($data, $sec1);
+
 ok(defined $encr, 'read encrypter');
 
 isa_ok($encr, 'XML::Compile::WSS::SecToken::EncrKey');
 is($encr->id, 'EK');
 
 # Check reuse of object.
-my $encr2 = XML::Compile::WSS::SecToken::EncrKey->getEncrypter($wss)->($data, $sec1);
+my $encr2 = XML::Compile::WSS::SecToken::EncrKey
+  ->getEncrypter($wss)->($data, $sec1);
 ok(defined $encr2);
 is($encr, $encr2, 'reuse encryped object');
 

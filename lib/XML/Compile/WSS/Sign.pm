@@ -102,7 +102,7 @@ sub signMethod() {shift->{XCWS_sign_method}}
 
 =method builder
 
-=method getCheck
+=method checker
 
 =cut
 

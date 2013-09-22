@@ -102,15 +102,20 @@ sub _get_encr($$)
         $type eq XENC_RSA_OAEP
             or error __x"unsupported encryption type {type}", type => $type;
 
-        XML::Compile::WSS::SecToken::EncrKey->new
-          ( id         => $id
-          , type       => $type
-          , key_size   => $h->{xenc_KeySize}
-          , token      => $tokens[0]
-
-          # OAEP parameters are only used by old PKCS and not supported
-          # by openssl
-          , params     => $h->{xenc_OAEPparams}
+        $class->new
+          ( id       => $id
+          , type     => $type
+          , key      => $h->{xenc_CipherData}{xenc_CipherValue}
+          , key_info =>
+              { key_size => $h->{xenc_KeySize}      # not used
+              }
+          , signer   =>
+              { padding    => 'PKCS1_OAEP'
+              , public_key => $tokens[0]
+                # OAEP parameters are only used by old PKCS and not supported
+                # by openssl
+              , params     => $h->{xenc_OAEPparams}
+              }
           );
     };
 }

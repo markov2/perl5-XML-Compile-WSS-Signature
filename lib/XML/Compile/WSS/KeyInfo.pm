@@ -130,7 +130,7 @@ sub getTokens($%)
       ( ds_KeyName         => $self->_get_by_keyname($wss, \%args)
       , ds_KeyValue        => undef
       , ds_RetrievalMethod => undef
-      , ds_X509Data        => undef
+      , ds_X509Data        => $self->_get_as_x509data($wss, \%args)
       , ds_PGPData         => undef
       , ds_SPKIData        => undef
       , ds_MgmtData        => undef
@@ -158,6 +158,23 @@ sub getTokens($%)
 sub _get_by_keyname($$)
 {   my ($self, $wss, $args) = @_;
     sub { my ($id, $sec, $h) = @_; $self->findToken(name => $h) };
+}
+
+# ds_X509Data
+sub _get_as_x509data($$)
+{   my ($self, $wss, $args) = @_;
+
+    sub {
+        my ($id, $sec, $h) = @_;
+
+        my @tokens;
+        foreach my $rec ( @{$h->{seq_ds_X509IssuerSerial} || []} )
+        {   my $bin_cert = $rec->{ds_X509Certificate} or next;
+            push @tokens, XML::Compile::WSS::SecToken::X509v3
+              ->new(id => $id, binary => $bin_cert);
+        }
+        @tokens;
+    };
 }
 
 # wsse_SecurityTokenReference
@@ -210,7 +227,8 @@ sub _get_str_uri($$)  # SECTOKREF_URI
         my $valuet = $d->{ValueType};
         if($valuet eq XTP10_X509v3)
         {   substr($uri, 0, 1) eq '#'
-                or error __x"Keyinfo {id}: only inlined token references supported", id => $id;
+                or error __x"Keyinfo {id}: only inlined token references supported, got {uri}"
+                    , id => $id, uri => $uri;
 
             my $binsec  = $sec->{wsse_BinarySecurityToken}
                 or error __x"Keyinfo {id}: cannot find BinarySecurityToken"
@@ -333,16 +351,19 @@ sub _make_sectokref_uri($$$)
     my $kidw   = $schema->writer('wsse:Reference', include_namespaces => 0);
     my $refer  = $self->_make_sectokref($wss, $args);
     my $bstw   = $schema->writer('wsse:BinarySecurityToken');
+    my $default_uri = $args->{sectokref_uri};
 
     sub {
         my ($doc, $token, $sec) = @_;
-        my ($uri, $type) = ($token->uri || 'abc', $token->type);
-        my $elem = $kidw->($doc, +{ValueType => $type, URI => $uri} );
+        my $uri    = $default_uri || $token->uri || '#abc';
+        my $intern = $uri !~ m!^\w+://!;
+        my $type   = $token->type;
+        my $elem   = $kidw->($doc, +{ValueType => $type, URI => $uri} );
 
-        $uri =~ s/^#//;
-        if($token->can('asBinary'))    # as side-effect, should be removed
-        {   my $bst = $bstw->($doc,
-             +{ wsu_Id       => $uri
+        if($intern && $token->can('asBinary'))
+        {   (my $id = $uri) =~ s/^#//;
+            my $bst = $bstw->($doc,
+             +{ wsu_Id       => $id
               , ValueType    => $type
               , EncodingType => $binenc
               ,  _           => wsm_encoded($binenc, $token->asBinary)
@@ -365,6 +386,10 @@ On the top level, we have the following options:
   keyinfo_id          an xsd:ID value for the Id attribute (namespaceless)
 
 =subsection KEYNAME
+
+=subsection X509DATA
+
+Currently only read-support for M<Net::Domain::SMD>.
 
 =subsection SecurityTokenReference
 
@@ -419,7 +444,7 @@ Example:
 
 Options and defaults:
 
-
+  sectokref_uri    Relative or absolute URI
 
 =cut
 

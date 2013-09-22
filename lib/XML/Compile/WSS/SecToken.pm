@@ -87,7 +87,7 @@ sub init($)
     $self->{XCWS_id}   = $args->{id}       || 'my-token';
     $self->{XCWS_enc}  = $args->{encoding} || WSM10_BASE64;
     $self->{XCWS_fp}   = $args->{fingerprint};
-    $self->{XCWS_uri}  = $args->{uri}      || 'TOKEN-'.($self+0);
+    $self->{XCWS_uri}  = $args->{uri}      || '#TOKEN-'.($self+0);
     $self->{XCWS_name} = $args->{name};
     $self;
 }
