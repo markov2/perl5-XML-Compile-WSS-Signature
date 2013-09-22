@@ -1,6 +1,8 @@
 
 ==== version history of XML::Compile:WSS::Signature
 
+version 2.00_03:
+
 version 2.00_02: Sun Sep 22 22:50:39 CEST 2013
 	Fixes:
 	- calling signature checker more than once.

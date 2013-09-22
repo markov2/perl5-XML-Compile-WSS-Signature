@@ -3,7 +3,7 @@ use ExtUtils::MakeMaker;
 
 use 5.008;
 
-my $version = '2.00_02';
+my $version = '2.00_03';
 
 WriteMakefile
  ( NAME	 	=> 'XML::Compile::WSS::Signature'

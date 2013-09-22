@@ -60,8 +60,12 @@ sub init($)
       , hashing => $args->{hashing}
       , padding => $args->{padding}
       );
-    
-    $self->publicKey($args->{public_key});
+ 
+    $self->publicKey
+      ( $args->{public_key}
+      , hashing => $args->{hashing}
+      , padding => $args->{padding}
+      );
     $self;
 }
 
@@ -86,12 +90,8 @@ Enforce an hashing setting on the KEY.
 =default padding <undef>
 =cut
 
-sub privateKey(;$%)
-{   my ($self, $priv, %args) = @_;
-    defined $priv or return $self->{XCWSR_privkey};
-
-    my ($key, $rsa) = $self->toPrivateSHA($priv);
-
+sub _setRSAflags($$%)
+{   my ($self, $key, $rsa, %args) = @_;
     if(my $hashing = $args{hashing})
     {   my $use_hash = "use_\L$hashing\E_hash";
         $rsa->can($use_hash)
@@ -107,8 +107,15 @@ sub privateKey(;$%)
                 , type => $padding, pkg => ref $key;
         $rsa->$use_pad();
     }
+    $rsa;
+}
 
-    $self->{XCWSR_privrsa} = $rsa;
+sub privateKey(;$%)
+{   my ($self, $priv) = (shift, shift);
+    defined $priv or return $self->{XCWSR_privkey};
+
+    my ($key, $rsa) = $self->toPrivateSHA($priv);
+    $self->{XCWSR_privrsa} = $self->_setRSAflags($key, $rsa, @_);
     $self->{XCWSR_privkey} = $key;
     $key;
 }
@@ -139,7 +146,7 @@ Returns the private key wrapped in a M<Crypt::OpenSSL::RSA> object.
 
 sub privateKeyRSA() {shift->{XCWSR_privrsa}}
 
-=method publicKey [KEY]
+=method publicKey [KEY, [OPTIONS]]
 Set the public key.  You can pass a KEY, which is one of
 =over 4
 =item * an M<XML::Compile::WSS::SecToken::X509v3> object
@@ -148,12 +155,18 @@ Set the public key.  You can pass a KEY, which is one of
 =back
 =cut
 
-sub publicKey(;$)
-{   my ($self, $pub) = @_;
-    return $self->{XCWSR_pubkey} if !defined $pub && $self->{XCWSR_pubkey};
-    my $token = $pub || $self->privateKeyRSA;
+sub publicKey(;$%)
+{   my $self = shift;
+    my $pub   = @_%2==1 ? shift : undef;
 
-    $self->{XCWSR_pubrsa} = $self->toPublicRSA($token);
+    return $self->{XCWSR_pubkey}
+        if !defined $pub && $self->{XCWSR_pubkey};
+
+    my $token = $pub || $self->privateKeyRSA
+        or return;
+
+    my ($key, $rsa) = $self->toPublicRSA($token);
+    $self->{XCWSR_pubrsa} = $self->_setRSAflags($key, $rsa, @_);
     $self->{XCWSR_pubkey} = $pub;
     $pub;
 }
@@ -168,13 +181,14 @@ sub toPublicRSA($)
     blessed $token
         or panic "expects a public_key as object, not ".$token;
 
-    return $token
+    return ($token->get_public_key_string, $token)
         if $token->isa('Crypt::OpenSSL::RSA');
 
     $token = $token->certificate
         if $token->isa('XML::Compile::WSS::SecToken::X509v3');
 
-    return Crypt::OpenSSL::RSA->new_public_key($token->pubkey)
+    my $key = $token->pubkey;
+    return ($key, Crypt::OpenSSL::RSA->new_public_key($key))
         if $token->isa('Crypt::OpenSSL::X509');
 
     error __x"unsupported public key `{token}' for check RSA"
@@ -254,17 +268,18 @@ sub checker()
     my $pub = $self->publicKeyRSA
         or error "checking signature with rsa requires the public_key";
 
-#   sub { # ($text, $signature)
-#       $pub->verify($_[0], $_[1]);
-#   };
-use MIME::Base64;
-sub {
-    my ($text, $sig) = @_;
-#   warn "TEXT=$text; ", ref $text;
-    my $t = $pub->verify($text, $sig);
-    $t or warn "SIGATURE FAILED";
-    1;
+    sub { # ($text, $signature)
+        $pub->verify($_[0], $_[1]);
     };
+
+#sub {
+#    my ($text, $sig) = @_;
+#   warn "TEXT=$text; ", ref $text;
+#    my $t = $pub->verify($text, $sig);
+#    $t or warn "SIGATURE FAILED";
+#    1;
+#    };
+
 }
 
 #-----------------

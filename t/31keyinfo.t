@@ -6,7 +6,7 @@ use strict;
 use lib '../XMLWSS/lib', 'lib';
 
 use Log::Report mode => 2;
-use Test::More  tests => 41;
+use Test::More  tests => 45;
 
 use Data::Dumper;
 $Data::Dumper::Indent    = 1;

@@ -218,7 +218,7 @@ sub prepareReading($)
     {   $self->{XCWS_rem_token} = XML::Compile::WSS::SecToken->fromConfig($r);
     }
 
-    my @elems_to_check;
+    my (@elems_to_check, $container, @signature_elems);
     $schema->addHook
       ( action => 'READER'
       , type   =>  ($config->{sign_types} or panic)
@@ -230,11 +230,13 @@ sub prepareReading($)
       );
 
     # we need the unparsed node to canonicalize and check
-    $schema->addHook(action => 'READER', type => 'ds:SignedInfoType'
-      , after => 'XML_NODE');
+    $schema->addHook
+      ( action => 'READER'
+      , type   => 'ds:SignedInfoType'
+      , after  => 'XML_NODE'
+      );
 
     # collect the elements to check, while decoding them
-    my ($container, @signature_elems);
     $schema->addHook
       ( action => 'READER'
       , type   => ($config->{sign_put} || panic)
@@ -258,11 +260,12 @@ sub prepareReading($)
           @signature_elems
               or error __x"signature element not found in answer";
 
-          $check_signature->($container, $_, \@elems_to_check)
-              for @signature_elems;
+          # We can leave the checking via exceptions, so have to reset
+          # the counters for the next message first.
+          my @e = @elems_to_check;  @elems_to_check  = ();
+          my @s = @signature_elems; @signature_elems = ();
 
-          @elems_to_check  = ();
-          @signature_elems = ();
+          $check_signature->($container, $_, \@e) for @s;
           $data;
         }
       );
@@ -270,7 +273,7 @@ sub prepareReading($)
     $self;
 }
 
-# The checker routines throw an exception or error
+# The checker routines throw an exception on error
 sub checker($@)
 {   my $self   = shift;
     my $config = $self->{XCWS_config};
@@ -282,8 +285,6 @@ sub checker($@)
 
     sub {
         my ($container, $sig, $elems) = @_;
-#use Data::Dumper;
-#warn "CHECKER ", Dumper $elems;
         my $ki        = $sig->{ds_KeyInfo};
         my @tokens    = $ki ? $get_tokens->($ki, $container, $sig->{Id}) : ();
 
@@ -299,7 +300,7 @@ sub checker($@)
         ### Check the signature of the whole block
 
         my $canon    = $info->{ds_CanonicalizationMethod};
-        my $preflist = $canon->{c14n_InclusiveNamespaces}{PrefixList} || [];
+        my $preflist = $canon->{c14n_InclusiveNamespaces}{PrefixList}; # || [];
         my $canonic  = $si->_get_canonic($canon->{Algorithm}, $preflist);
         my $sigvalue = $sig->{ds_SignatureValue}{_};
 
@@ -403,7 +404,7 @@ sub prepareWriting($)
       , after  => sub {
           my ($doc, $xml) = @_;
 #warn "Located signature container";
-          $schema->prefixFor(WSU_10);
+#         $schema->prefixFor(WSU_10);
           $container = $xml;
         }
       );

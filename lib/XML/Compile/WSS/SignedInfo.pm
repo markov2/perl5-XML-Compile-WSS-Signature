@@ -14,7 +14,7 @@ use XML::Compile::C14N::Util qw/:c14n is_canon_constant/;
 # Quite some problems to get canonicalization compatible between
 # client and server.  Especially where some xmlns's are optional.
 # It may help to enforce some namespaces via $wsdl->prefixFor($ns)
-my @default_canon_ns = qw/wsu/;
+my @default_canon_ns = (); # qw/wsu/;
 
 # There can only be one c14n rule active, because it would otherwise
 # produce a prefix
@@ -242,8 +242,9 @@ sub _digest_check($$)
         my $canonic   = $self->_get_canonic($canon, $preflist);
         my $digester  = $self->_get_digester($digmeth, $canonic);
 #use MIME::Base64;
-#warn "IS? ".$digester->($elem), '==', $ref->{ds_DigestValue};
+#warn "IS? ".encode_base64($digester->($elem)), '==', encode_base64($ref->{ds_DigestValue});
         my $correct   = $digester->($elem) eq $ref->{ds_DigestValue};
+#warn "CORRECT? $correct#";
         $elem->addChild($_) for @removed;
         $correct;
     };
@@ -336,8 +337,6 @@ sub checker($$$)
             $references{$uri} = $ref;
         }
 
-#warn "FOUND: ", join ';', sort keys %references;
-
         foreach my $node (@$elems)
         {   # Sometimes "id" (Signature), sometimes "wsu:Id" (other)
             my $id  = $node->getAttribute('Id')   # Signature/KeyInfo
@@ -346,7 +345,6 @@ sub checker($$$)
                 or error __x"node to check signature without Id, {type}"
                     , type => type_of_node $node;
 
-#warn "Id=$id";
             my $ref = delete $references{$id}
                 or next;  # maybe in other signature block
 
