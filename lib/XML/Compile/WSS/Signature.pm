@@ -34,7 +34,7 @@ my %prefixes =
 #$Data::Dumper::Quotekeys = 0;
 
 =chapter NAME
-XML::Compile::WSS::Signature - WSS Signatures version 1
+XML::Compile::WSS::Signature - WSS Signatures
 
 =chapter SYNOPSIS
 
