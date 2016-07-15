@@ -49,7 +49,7 @@ See F<docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0.pd
 
 =chapter METHODS
 
-=c_method new OPTIONS
+=c_method new %options
 Either the C<certificate> object or a C<cert_file> must be specified.
 
 =default type XTP10_X509v3
@@ -83,8 +83,8 @@ sub init($)
     $self;
 }
 
-=c_method fromFile FILENAME, OPTIONS
-[1.07] read the certificate from a file.  You can pass all OPTIONS provided
+=c_method fromFile $filename, %options
+[1.07] read the certificate from a file.  You can pass all %options provided
 by M<new()> plus some specific parameters.
 
 =option  format FORMAT_*
@@ -97,7 +97,7 @@ sub fromFile($%)
 {   my ($class, $fn, %args) = @_;
 
     # openssl's error message are a poor
-    -f $fn or error __x"key file {fn} does not exit", fn => $fn;
+    -f $fn or error __x"key file {fn} does not exist", fn => $fn;
 
     my $format = delete $args{format} || FORMAT_PEM;
     my $cert   = eval { Crypt::OpenSSL::X509->new_from_file($fn, $format) };

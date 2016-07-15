@@ -18,7 +18,7 @@ XML::Compile::WSS::Sign - Base for WSS Signers
   # either
   use XML::Compile::WSS::Util qw/DSIG_RSA_SHA1/;
   my $sign = XML::Compile::WSS::Sign->new
-    ( sign_method        => DSIG_RSA_SHA1
+    ( sign_method => DSIG_RSA_SHA1
     , private_key => $key
     , ...
     );
@@ -44,7 +44,7 @@ Hire me to implement other signers!
 
 =section Constructors
 
-=c_method new OPTIONS
+=c_method new %options
 
 =option   sign_method TYPE
 =default  sign_method DSIG_RSA_SHA1

@@ -19,7 +19,8 @@ use XML::Compile::Tester     qw/compare_xml/;
 use MIME::Base64             qw/encode_base64/;
 
 
-my $certfn    = 't/20cert.pem';
+my $certfn     = 't/20cert.pem';
+my $privkey_fn = 't/20privkey.pem';
 sub newdoc() { XML::LibXML::Document->new('1.0', 'UTF8') }
 
 use_ok('XML::Compile::Cache');
@@ -32,9 +33,13 @@ ok(defined $schema);
 my $wss       = XML::Compile::WSS::Signature->new
   ( version => '1.1'
   , schema  => $schema
-  , prepare => 'NONE'
   , token   => 'dummy'
+
+  , sign_types  => []
+  , sign_put    => []
+  , private_key => $privkey_fn
   );
+
 isa_ok($wss, 'XML::Compile::WSS');
 isa_ok($wss, 'XML::Compile::WSS::Signature');
 
@@ -190,6 +195,7 @@ __XML
 compare_xml($sec2b->toString(1), <<'__SEC', 'binsectoken');
 <top>
   <wsse:BinarySecurityToken
+     xmlns:c14n="http://www.w3.org/2001/10/xml-exc-c14n#"
      xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
      xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
      wsu:Id="my-uri"

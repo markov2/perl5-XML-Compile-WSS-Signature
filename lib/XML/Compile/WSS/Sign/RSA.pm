@@ -30,7 +30,7 @@ XML::Compile::WSS::Sign::RSA - WSS Signing with RSA
 
 =section Constructors
 
-=c_method new OPTIONS
+=c_method new %options
 
 =option  private_key OBJECT|STRING|FILENAME
 =default private_key C<undef>
@@ -73,7 +73,7 @@ sub init($)
 =section Attributes
 =cut
 
-=method privateKey [KEY, OPTIONS]
+=method privateKey [$key, %options]
 The private key must be set with M<new(private_key)> or this method before
 you can sign.  This method will return the text of the key.
 =over 4
@@ -84,7 +84,7 @@ you can sign.  This method will return the text of the key.
 
 =option  hashing 'SHA1'|'MD5'|'RIPEMD160'|...
 =default hashing <undef>
-Enforce an hashing setting on the KEY.
+Enforce an hashing setting on the $key.
 
 =option  padding 'NO'|'PKCS1'|'PKCS1_OAEP'|'SSLv23'
 =default padding <undef>
@@ -120,7 +120,7 @@ sub privateKey(;$%)
     $key;
 }
 
-=ci_method toPrivateSHA PRIVATE-KEY
+=ci_method toPrivateSHA $private-$key
 =cut
 
 sub toPrivateSHA($)
@@ -136,7 +136,12 @@ sub toPrivateSHA($)
         if index($priv, "\n") >= 0;
 
     my $key = read_file $priv;
-    my $rsa = Crypt::OpenSSL::RSA->new_private_key($key);
+    my $rsa = eval { Crypt::OpenSSL::RSA->new_private_key($key) };
+    if($@)
+    {   error __x"cannot read private RSA key from {file}: {err}"
+          , file => $priv, err => $@;
+    }
+
     ($key, $rsa);
 }
 
@@ -146,8 +151,8 @@ Returns the private key wrapped in a M<Crypt::OpenSSL::RSA> object.
 
 sub privateKeyRSA() {shift->{XCWSR_privrsa}}
 
-=method publicKey [KEY, [OPTIONS]]
-Set the public key.  You can pass a KEY, which is one of
+=method publicKey [$key, %options]
+Set the public key.  You can pass a $key, which is one of
 =over 4
 =item * an M<XML::Compile::WSS::SecToken::X509v3> object
 =item * an M<Crypt::OpenSSL::RSA> object
@@ -171,7 +176,7 @@ sub publicKey(;$%)
     $pub;
 }
 
-=ci_method toPublicRSA OBJECT
+=ci_method toPublicRSA $object
 =cut
 
 sub toPublicRSA($)
@@ -242,7 +247,7 @@ sub decrypt(@)
     $priv->decrypt($text);
 }
 
-=method check BYTES, SIGNATURE
+=method check $bytes, $signature
 =cut
 
 sub check($$)
@@ -271,15 +276,6 @@ sub checker()
     sub { # ($text, $signature)
         $pub->verify($_[0], $_[1]);
     };
-
-#sub {
-#    my ($text, $sig) = @_;
-#   warn "TEXT=$text; ", ref $text;
-#    my $t = $pub->verify($text, $sig);
-#    $t or warn "SIGATURE FAILED";
-#    1;
-#    };
-
 }
 
 #-----------------

@@ -17,12 +17,13 @@ XML::Compile::WSS::Sign::HMAC - WSS Signing with HMAC
 
   # either
   use XML::Compile::WSS::Util qw/DSIG_HMAC_SHA1/;
-  my $sign = XML::Compile::WSS::Sign->new(type => DSIG_HMAC_SHA1);
+  my $sign = XML::Compile::WSS::Sign->new(type => DSIG_HMAC_SHA1
+    , key => $password, ...);
 
   # or
   use XML::Compile::WSS::Sign::HMAC;
   my $token = XML::Compile::WSS::Sign::HMAC->new(
-     hashing => 'SHA1', ...);
+     hashing => 'SHA1', key => $password, ...);
 
 =chapter DESCRIPTION
 
@@ -30,7 +31,7 @@ XML::Compile::WSS::Sign::HMAC - WSS Signing with HMAC
 
 =section Constructors
 
-=c_method new OPTIONS
+=c_method new %options
 
 =requires key  KEY|M<XML::Compile::WSS::SecToken::EncrKey> object
 

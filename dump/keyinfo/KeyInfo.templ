@@ -2,7 +2,7 @@
 #     {http://www.w3.org/2000/09/xmldsig#}KeyInfo
 #
 # Produced by XML::Compile::Translate::Template version undef
-#          on Fri Oct 11 14:43:09 2013
+#          on Sat Jul 16 01:29:18 2016
 #
 # BE WARNED: in most cases, the example below cannot be used without
 # interpretation.  The comments will guide you.
@@ -10,7 +10,11 @@
 # xmlns:ds        http://www.w3.org/2000/09/xmldsig#
 
 # is a ds:KeyInfoType
-{ # choice of ds_KeyName, ds_KeyValue, ds_RetrievalMethod,
+{ # is a xsd:ID
+  # becomes an attribute
+  Id => "id_0",
+
+  # choice of ds_KeyName, ds_KeyValue, ds_RetrievalMethod,
   #   ds_X509Data, ds_PGPData, ds_SPKIData, ds_MgmtData, ANY
   # occurs 1 <= # <= unbounded times
   cho_ds_KeyName => 
@@ -70,7 +74,15 @@
 
       # is a ds:RetrievalMethodType
       ds_RetrievalMethod =>
-      { # sequence of ds_Transforms
+      { # is a xsd:anyURI
+        # becomes an attribute
+        URI => "http://example.com",
+
+        # is a xsd:anyURI
+        # becomes an attribute
+        Type => "http://example.com",
+
+        # sequence of ds_Transforms
 
         # is a ds:TransformsType
         # is optional
@@ -80,7 +92,11 @@
           # is a ds:TransformType
           # occurs 1 <= # <= unbounded times
           ds_Transform =>
-          [ { # choice of ANY, ds_XPath
+          [ { # is a xsd:anyURI
+              # attribute Algorithm is required
+              Algorithm => "http://example.com",
+
+              # choice of ANY, ds_XPath
               # occurs any number of times
               cho_any => 
               [ {
@@ -89,17 +105,7 @@
 
                   # is a xsd:string
                   ds_XPath => "example", },
-              ],
-
-              # is a xsd:anyURI
-              # attribute Algorithm is required
-              Algorithm => "http://example.com", }, ], },
-
-        # is a xsd:anyURI
-        URI => "http://example.com",
-
-        # is a xsd:anyURI
-        Type => "http://example.com", },
+              ], }, ], }, },
 
       # is a ds:X509DataType
       ds_X509Data =>
@@ -181,7 +187,4 @@
 
       # any element not in ds:
       ANY => "Anything", },
-  ],
-
-  # is a xsd:ID
-  Id => "id_0", }
+  ], }

@@ -1,7 +1,17 @@
 
 ==== version history of XML::Compile:WSS::Signature
 
+version 2.02: Sat 16 Jul 01:29:54 CEST 2016
+
+	Fixes:
+	- do not die on unused header elements.
+
+	Improvements:
+	- change documentation style.
+	- change signature hook from replace into after.
+
 version 2.01: Fri Oct 11 15:53:23 CEST 2013
+
 	Fixes:
 	- calling signature checker more than once.
 	- follow changes in XML::Compile::WSS 1.09
@@ -12,6 +22,7 @@ version 2.01: Fri Oct 11 15:53:23 CEST 2013
 	- too many to mention!  Close to full rework.
 
 version 1.09:
+
 	Fixes:
 	- receive messages without PrefixList  [Karen Etheridge]
 	- token and private_key configuration is optional: report errors
@@ -21,6 +32,7 @@ version 1.09:
 	- use ::Cache::addPrefixes()
 
 version 1.08: Fri Jan 18 13:37:45 CET 2013
+
 	Changes:
 	- elementsToSign() -> takeElementsToSign()
 

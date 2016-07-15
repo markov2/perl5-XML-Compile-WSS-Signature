@@ -26,7 +26,7 @@ XML::Compile::WSS::SecToken::EncrKey - WSS Encrypted Keys
 
 =section Constructors
 
-=c_method new OPTIONS
+=c_method new %options
 =default  type   XENC_RSA_OAEP
 
 =requires key    STRING
@@ -123,7 +123,7 @@ sub _get_encr($$)
 # The key may differ per message, not the certificate
 # Do not reinstate existing encrypters
 
-=c_method getEncrypter WSS, OPTIONS
+=c_method getEncrypter $wss, %options
 Not for end-users.  Returns the CODE which returns the object which
 handles encryption or decryption of the key.
 =cut
@@ -140,7 +140,7 @@ sub getEncrypter($%)
     };
 }
 
-=c_method getKey WSS, OPTIONS
+=c_method getKey $wss, %options
 Not for end-users.  Returns the CODE to produce the decrypted key.
 =cut
 
@@ -158,7 +158,7 @@ sub getKey($%)
     };
 }
 
-=c_method getChecker WSS, OPTIONS
+=c_method getChecker $wss, %options
 =cut
 
 sub getChecker($%)
@@ -173,11 +173,15 @@ sub getChecker($%)
         # xenc_CipherReference not (yet) supported
         my $outcome = $h->{xenc_CipherData}{xenc_CipherValue}
             or error __x"cipher data not understood for {id}", id => $id;
-#use MIME::Base64;
-#warn "OUT=", encode_base64 $outcome;
 
         my $got = $encr->signer->encrypt($value);
+
+#use MIME::Base64;
+#warn "OUT=", encode_base64 $outcome;
 #warn "GOT=", encode_base64 $got;
+# This warning is currently produced in t/21enckey.t, but that example
+# may be wrong... or something else... no idea yet.
+
         $got eq $outcome
             or warning __x"check of crypto checksum failed {id}", id => $id;
 

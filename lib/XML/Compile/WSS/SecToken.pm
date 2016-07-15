@@ -43,7 +43,7 @@ Hire me to implement these!
 
 =section Constructors
 
-=c_method new OPTIONS
+=c_method new %options
 =option   id     wsu::Id
 =default  id     'my-token'
 
@@ -92,8 +92,8 @@ sub init($)
     $self;
 }
 
-=c_method fromConfig CONFIG, OPTIONS
-Try to be very flexible.  CONFIG can be a HASH, which could also be
+=c_method fromConfig $config, %options
+Try to be very flexible.  $config can be a HASH, which could also be
 passed to M<new()> directly.  But it can also be various kinds of
 objects.
 

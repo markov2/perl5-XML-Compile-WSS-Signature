@@ -22,7 +22,7 @@ use File::Glob      qw/bsd_glob/;
 use Scalar::Util    qw/blessed/;
 
 my %prefixes =
-  ( # ds=DSIG_NS defined in ::WSS
+  ( # ds=DSIG_NS already registered in ::WSS
     dsig11 => DSIG11_NS
   , dsp    => DSP_NS
   , dsigm  => DSIG_MORE_NS
@@ -41,7 +41,7 @@ XML::Compile::WSS::Signature - WSS Signatures
 B<WARNING: Only limited real-life experience.>  Many optional
 extensions have never been tried.
 
- # You may need a few of these
+ # You may need a few constants
  use XML::Compile::WSS::Util  qw/:dsig/;
  use XML::Compile::C14N::Util qw/:c14n/;
 
@@ -61,37 +61,42 @@ class M<XML::Compile::WSS>.  This extension implements cypto signatures.
 
 On this moment, there are two versions of this standard:
 =over 4
-=item F<http://www.w3.org/TR/2002/REC-xmldsig-core-20020212/>
-=item F<http://www.w3.org/TR/xmldsig-core2/>
+=item * F<http://www.w3.org/TR/2002/REC-xmldsig-core-20020212/>
+=item * F<http://www.w3.org/TR/xmldsig-core2/>
 =back
 
-One or more elements of the document can be selected to be signed. They
+One or more elements of a (SOAP) document can be selected to be signed. They
 are canonalized (serialized in a well-described way) and then digested
 (usually via SHA1).  The digest is put in a C<SignedInfo> component of
-the C<Signature> feature in the C<Security> header.  When all digests
-are in place, the whole SignedInfo structure
+the C<Signature> element in the C<Security> header.  When all digests
+are in place, the whole SignedInfo structure gets signed.
 
 =section Limitations
-Many companies have their own use of the pile of standards for this
-feature.  Some of the resulting limitations are known by the author:
+Many companies use their own selection from a large the pile of standards
+for this feature.  Some of the resulting limitations are known by the author:
 
 =over 4
 =item * digests
 Only digest algorithms which are provided via the M<Digest> module are
-supported for the elements to be signed.
+supported for the elements to be signed.  (But that's quite a lot)
+
 =item * signatures
-Only a limited subset of signing (algoritm, hash) combinations are
+Only a limited subset of signing (algorithm, hash) combinations are
 supported.  Lower on this page, you find details about each of the
 provided signing implementations.
+
 =back
 
 =chapter METHODS
 
 =section Constructors
 
-=c_method new OPTIONS
+=c_method new %options
 
-The OPTIONS you provisw here, will also end-up as
+The %options you provide here, will will passed to various objects
+which are created automatially.  But you may also give pre-instantiated
+objects, for instance when you decide to use your own extension on a
+certain spot.
 
 =default wss_version  '1.1'
 
@@ -145,33 +150,33 @@ sub init($)
 
     my $signer  = delete $args->{signer} || {};
     blessed $signer || ref $signer
-        or $signer  = { sign_method => $signer };            # pre 2.00
-    $signer->{$_} ||= delete $args->{$_}                     # pre 2.00
-        for qw/private_key/;
-    $self->{XCWS_signer}  = XML::Compile::WSS::Sign
-      ->fromConfig(%$signer, wss => $self);
+        or $signer  = +{ sign_method => $signer };           # pre 2.00
+
+    $signer->{private_key} ||= delete $args->{private_key};  # pre 2.00
+    $self->{XCWS_signer}   =
+        XML::Compile::WSS::Sign->fromConfig(%$signer, wss => $self);
 
     my $si      = delete $args->{signed_info} || {};
     $si->{$_} ||= delete $args->{$_}
         for qw/digest_method cannon_method prefix_list/;     # pre 2.00
 
-    $self->{XCWS_siginfo} = XML::Compile::WSS::SignedInfo
-      ->fromConfig(%$si, wss => $self);
+    $self->{XCWS_siginfo}  =
+        XML::Compile::WSS::SignedInfo->fromConfig(%$si, wss => $self);
 
     my $ki      = delete $args->{key_info} || {};
-    $ki->{$_} ||= delete $args->{$_}
-        for qw/publish_token/;                               # pre 2.00
+    $ki->{publish_token} ||= delete $args->{publish_token};  # pre 2.00
 
-    $self->{XCWS_keyinfo} = XML::Compile::WSS::KeyInfo
-      ->fromConfig(%$ki, wss => $self);
+    $self->{XCWS_keyinfo}  =
+        XML::Compile::WSS::KeyInfo->fromConfig(%$ki, wss => $self);
 
     if(my $subsig = delete $args->{signature})
-    {   $self->{XCWS_subsig} = (ref $self)->new(wss_version => $wss_v
-          , schema => $self->schema, %$subsig);
+    {   $subsig->{sign_types} ||= [ 'wsse:SignatureType' ];
+        $subsig->{sign_put}   ||= $args->{sign_put};
+        $self->{XCWS_subsig} = (ref $self)
+          ->new(wss_version => $wss_v, schema => $self->schema, %$subsig);
     }
 
     $self->{XCWS_token}    = $args->{token};
-
     $self->{XCWS_config}   = $args;  # the left-overs are for me
     $self;
 }
@@ -237,9 +242,10 @@ sub prepareReading($)
       );
 
     # collect the elements to check, while decoding them
+    my $sign_put = $config->{sign_put} or panic;
     $schema->addHook
       ( action => 'READER'
-      , type   => ($config->{sign_put} || panic)
+      , type   => $sign_put
       , after  => sub {
           my ($xml, $data, $path) = @_;
 #warn "Located signature at $path";
@@ -251,9 +257,10 @@ sub prepareReading($)
       );
 
     my $check_signature = $self->checker;
+    my $sign_when = $config->{sign_when} || $sign_put;
     $schema->addHook
       ( action => 'READER'
-      , type   => ($config->{sign_when} || panic)
+      , type   => $sign_when
       , after  => sub {
           my ($xml, $data, $path) = @_;
 #warn "Checking signatures when at $path";
@@ -370,37 +377,62 @@ sub prepareWriting($)
     $self->token
         or error __x"creating signatures needs a token";
 
-    my $config = $self->{XCWS_config};
+    my $config     = $self->{XCWS_config};
 
     my @elems_to_sign;
+    my $sign_types = $config->{sign_types} or panic;
+    my @sign_types = ref $sign_types eq 'ARRAY' ? @$sign_types : $sign_types;
+
     $schema->addHook
-      ( action   => 'WRITER'
-      , type     => ($config->{sign_types} or panic)
-      , after    => sub {
-          my ($doc, $xml) = @_;
+      ( action => 'WRITER'
+      , type   => \@sign_types
+      , after  => sub {
+          my ($doc, $xml, $path, $val, $type) = @_;
 
-          unless($xml->getAttributeNS(WSU_10, 'Id'))
-          {   my $wsuid = 'node-'.($xml+0);      # configurable?
-              $xml->setNamespace(WSU_10, wsu => 0);
-              $xml->setAttributeNS(WSU_10, Id => $wsuid);
+          # Not all schemas demand an explicit Id on the signed element, so
+          # we may need to force one.
+          my $has = $xml->getAttributeNS(WSU_10, 'Id')
+                 || $xml->getAttribute('wsu:Id');
 
-              # Above two lines do add a xml:wsu per Id.  Below does not,
-              # which is not always enough: elements live in weird places
-              #  my $wsu   = $schema->prefixFor(WSU_10);
-              #  $xml->setAttribute("$wsu:Id", $wsuid);
+          my $wsuid = $val->{wsu_Id};
+          if($has)
+          {   error __x"element {type} wants two wsu:Id's: {one} and {two}"
+                , type => $type, one => $wsuid, two => $has
+                  if $has ne $wsuid;
+          }
+          else
+          {   $xml->setNamespace(WSU_10, wsu => 0);
+              $xml->setAttributeNS(WSU_10, Id => $wsuid || 'node-'.($xml+0));
+              # Above two lines do add a xmlns:wsu per Id.
           }
 
-#use XML::Compile::Util qw/type_of_node/;
-#warn "Registering to sign ".type_of_node($xml);
           push @elems_to_sign, $xml;
           $xml;
         }
       );
 
+    my $sign_put  = $config->{sign_put}  or panic;
+    my $sign_when = $config->{sign_when} || $sign_put;
+
+    my $enveloped = grep $sign_put eq $_, @sign_types;
+    if($enveloped)
+    {   # The Signature element is required in the enveloped element,
+        # but can only be created after the element has been produced.  This
+        # is a chicken-egg situation.  Gladly, XML::Compile does not check
+        # the kind of node which get's produced, so we can put in an empty
+        # text-node which gets ignored.
+        $schema->addHook
+          ( action => 'WRITER', type => 'ds:SignatureType'
+          , replace => sub { $_[0]->createTextNode('') }
+          );
+    }
+
+    my $add_signature = $self->builder(enveloped => $enveloped);
+
     my $container;
     $schema->addHook
       ( action => 'WRITER'
-      , type   => ($config->{sign_put} || panic)
+      , type   => $sign_put
       , after  => sub {
           my ($doc, $xml) = @_;
 #warn "Located signature container";
@@ -409,10 +441,9 @@ sub prepareWriting($)
         }
       );
 
-    my $add_signature = $self->builder;
     $schema->addHook
       ( action => 'WRITER'
-      , type   => ($config->{sign_when} || panic)
+      , type   => $sign_when
       , after  => sub {
           my ($doc, $xml) = @_;
 #warn "Creating signature";
@@ -444,7 +475,6 @@ sub loadSchemas($$)
     $schema->addKeyRewrite("PREFIXED($prefixes)");
 
     $schema->importDefinitions(\@xsds);
-
     $schema;
 }
 

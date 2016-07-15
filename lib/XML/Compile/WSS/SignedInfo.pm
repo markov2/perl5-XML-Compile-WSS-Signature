@@ -14,7 +14,7 @@ use XML::Compile::C14N::Util qw/:c14n is_canon_constant/;
 # Quite some problems to get canonicalization compatible between
 # client and server.  Especially where some xmlns's are optional.
 # It may help to enforce some namespaces via $wsdl->prefixFor($ns)
-my @default_canon_ns = (); # qw/wsu/;
+my @default_canon_ns = qw(SOAP-ENV); # qw/wsu/;
 
 # There can only be one c14n rule active, because it would otherwise
 # produce a prefix
@@ -35,7 +35,7 @@ The administration and reading/writing for the SignedInfo structure.
 
 =section Constructors
 
-=c_method new WSS, OPTIONS
+=c_method new $wss, %options
 
 =option  digest_method DIGEST
 =default digest_method DSIG_SHA1
@@ -72,7 +72,9 @@ sub init($)
     my $digest = $self->{XCWS_dig}
                = $args->{digest_method} || DSIG_SHA1;
     try { $self->_get_digester($digest, undef) };
-    panic "digest method $digest is not useable: $@" if $@;
+    error __x"digest method {name} is not useable: {err}"
+      , name => $digest, err => $@
+        if $@;
 
     my $canon  = $self->{XCWS_can}
                = $args->{canon_method}  || C14N_EXC_NO_COMM;
@@ -109,9 +111,9 @@ sub c14n()                { shift->{XCWS_c14n} }
 #-----------------
 =section Handlers
 
-=method builder WSS, OPTIONS
+=method builder $wss, %options
 Not for end-users.  Returns a CODE which will be called to produce the
-data for a ds_SignedInfo block.  The OPTIONS can overrule the defaults
+data for a ds_SignedInfo block.  The %options can overrule the defaults
 set by M<new()>
 =cut
 
@@ -135,6 +137,7 @@ sub builder($%)
     sub {
         my ($doc, $elems, $sign_method) = @_;
 
+        # warn "SIGN ELEMS @$elems";
         my @refs;
         foreach (@$elems)
         {   my $node  = $cleanup->($_, @$preflist);
@@ -156,13 +159,14 @@ sub builder($%)
               };
         }
 
-        my $canonical = +{Algorithm => $canon, $inclw->($doc, $preflist)};
+        my $canonical = +{ Algorithm => $canon, $inclw->($doc, $preflist) };
 
         my $siginfo = $infow->($doc, 
          +{ ds_CanonicalizationMethod => $canonical
           , ds_Reference              => \@refs
           , ds_SignatureMethod        => { Algorithm => $sign_method }
           } );
+        # warn "SIGINFO = $siginfo";
 
         my $si_canon = $canonic->($cleanup->($siginfo, @$preflist));  # to sign
         ($siginfo, $si_canon);
@@ -188,11 +192,10 @@ sub _get_digester($$)
 
     sub {
         my $node   = shift;
-#warn "CANONIC=",$canonic->($node),"#";
         my $digest = try
-          { Digest::SHA->new($algo)         # Digest objects cannot be reused
+          { Digest::SHA->new($algo)    # Digest objects cannot be reused
              ->add($canonic->($node))
-             ->digest                  # becomes base64 via XML field type
+             ->digest;                 # becomes base64 via XML field type
           };
 #use MIME::Base64;
 #warn "DIGEST=", encode_base64 $digest;
@@ -326,10 +329,6 @@ sub checker($$$)
     sub {
         my ($info, $elems, $tokens)  = @_;
 
-        #
-        ### Check digest of the elements
-        #
-
         my %references;
         foreach my $ref (@{$info->{ds_Reference}})
         {   my $uri = $ref->{URI};
@@ -341,8 +340,9 @@ sub checker($$$)
         {   # Sometimes "id" (Signature), sometimes "wsu:Id" (other)
             my $id  = $node->getAttribute('Id')   # Signature/KeyInfo
                    || $node->getAttributeNS(WSU_NS, 'Id')
-                   || $node->getAttribute('id')   # SMD::SignedMark
-                or error __x"node to check signature without Id, {type}"
+                   || $node->getAttribute('id');  # SMD::SignedMark
+
+            $id or error __x"node to check signature without Id, {type}"
                     , type => type_of_node $node;
 
             my $ref = delete $references{$id}
@@ -352,8 +352,8 @@ sub checker($$$)
                 or error __x"digest info of {elem} is wrong", elem => $id;
         }
 
-        error __x"reference {uri} not used", uri => [keys %references]
-            if keys %references;
+        trace __x"reference {uri} not used", uri => $_
+            for keys %references;
     };
 }
 

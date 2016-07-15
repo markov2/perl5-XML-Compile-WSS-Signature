@@ -2,7 +2,7 @@
 #     {http://www.w3.org/2001/04/xmlenc#}EncryptedKey
 #
 # Produced by XML::Compile::Translate::Template version undef
-#          on Fri Oct 11 14:43:10 2013
+#          on Sat Jul 16 01:29:19 2016
 #
 # BE WARNED: in most cases, the example below cannot be used without
 # interpretation.  The comments will guide you.
@@ -11,13 +11,37 @@
 # xmlns:xenc      http://www.w3.org/2001/04/xmlenc#
 
 # is a xenc:EncryptedKeyType
-{ # sequence of xenc_EncryptionMethod, ds_KeyInfo,
+{ # is a xsd:ID
+  # becomes an attribute
+  Id => "id_0",
+
+  # is a xsd:anyURI
+  # becomes an attribute
+  Type => "http://example.com",
+
+  # is a xsd:string
+  # becomes an attribute
+  MimeType => "example",
+
+  # is a xsd:anyURI
+  # becomes an attribute
+  Encoding => "http://example.com",
+
+  # is a xsd:string
+  # becomes an attribute
+  Recipient => "example",
+
+  # sequence of xenc_EncryptionMethod, ds_KeyInfo,
   #   xenc_CipherData, xenc_EncryptionProperties
 
   # is a xenc:EncryptionMethodType
   # is optional
   xenc_EncryptionMethod =>
-  { # sequence of xenc_KeySize, xenc_OAEPparams, ANY
+  { # is a xsd:anyURI
+    # attribute Algorithm is required
+    Algorithm => "http://example.com",
+
+    # sequence of xenc_KeySize, xenc_OAEPparams, ANY
 
     # is a xsd:integer
     # is optional
@@ -29,16 +53,16 @@
 
     # any element not in xenc:
     # occurs any number of times
-    ANY => [ "Anything", ],
-
-    # is a xsd:anyURI
-    # attribute Algorithm is required
-    Algorithm => "http://example.com", },
+    ANY => [ "Anything", ], },
 
   # is a ds:KeyInfoType
   # is optional
   ds_KeyInfo =>
-  { # choice of ds_KeyName, ds_KeyValue, ds_RetrievalMethod,
+  { # is a xsd:ID
+    # becomes an attribute
+    Id => "id_0",
+
+    # choice of ds_KeyName, ds_KeyValue, ds_RetrievalMethod,
     #   ds_X509Data, ds_PGPData, ds_SPKIData, ds_MgmtData, ANY
     # occurs 1 <= # <= unbounded times
     cho_ds_KeyName => 
@@ -98,7 +122,15 @@
 
         # is a ds:RetrievalMethodType
         ds_RetrievalMethod =>
-        { # sequence of ds_Transforms
+        { # is a xsd:anyURI
+          # becomes an attribute
+          URI => "http://example.com",
+
+          # is a xsd:anyURI
+          # becomes an attribute
+          Type => "http://example.com",
+
+          # sequence of ds_Transforms
 
           # is a ds:TransformsType
           # is optional
@@ -108,7 +140,11 @@
             # is a ds:TransformType
             # occurs 1 <= # <= unbounded times
             ds_Transform =>
-            [ { # choice of ANY, ds_XPath
+            [ { # is a xsd:anyURI
+                # attribute Algorithm is required
+                Algorithm => "http://example.com",
+
+                # choice of ANY, ds_XPath
                 # occurs any number of times
                 cho_any => 
                 [ {
@@ -117,17 +153,7 @@
 
                     # is a xsd:string
                     ds_XPath => "example", },
-                ],
-
-                # is a xsd:anyURI
-                # attribute Algorithm is required
-                Algorithm => "http://example.com", }, ], },
-
-          # is a xsd:anyURI
-          URI => "http://example.com",
-
-          # is a xsd:anyURI
-          Type => "http://example.com", },
+                ], }, ], }, },
 
         # is a ds:X509DataType
         ds_X509Data =>
@@ -209,10 +235,7 @@
 
         # any element not in ds:
         ANY => "Anything", },
-    ],
-
-    # is a xsd:ID
-    Id => "id_0", },
+    ], },
 
   # is a xenc:CipherDataType
   xenc_CipherData =>
@@ -223,7 +246,11 @@
 
     # is a xenc:CipherReferenceType
     xenc_CipherReference =>
-    { # choice of xenc_Transforms
+    { # is a xsd:anyURI
+      # attribute URI is required
+      URI => "http://example.com",
+
+      # choice of xenc_Transforms
 
       # is a xenc:TransformsType
       # is optional
@@ -233,39 +260,38 @@
         # is a ds:TransformType
         # complex structure shown above
         # occurs 1 <= # <= unbounded times
-        ds_Transform => [{},], },
-
-      # is a xsd:anyURI
-      # attribute URI is required
-      URI => "http://example.com", }, },
+        ds_Transform => [{},], }, }, },
 
   # is a xenc:EncryptionPropertiesType
   # is optional
   xenc_EncryptionProperties =>
-  { # sequence of xenc_EncryptionProperty
+  { # is a xsd:ID
+    # becomes an attribute
+    Id => "id_0",
+
+    # sequence of xenc_EncryptionProperty
 
     # is a xenc:EncryptionPropertyType
     # occurs 1 <= # <= unbounded times
     xenc_EncryptionProperty =>
-    [ { # choice of ANY
+    [ { # is a xsd:anyURI
+        # becomes an attribute
+        Target => "http://example.com",
+
+        # is a xsd:ID
+        # becomes an attribute
+        Id => "id_0",
+
+        # any attribute in http://www.w3.org/XML/1998/namespace
+        ANYATTR => "AnySimple",
+
+        # choice of ANY
         # occurs 1 <= # <= unbounded times
         cho_any => 
         [ {
             # any element not in xenc:
             ANY => "Anything", },
-        ],
-
-        # is a xsd:anyURI
-        Target => "http://example.com",
-
-        # is a xsd:ID
-        Id => "id_0",
-
-        # any attribute in http://www.w3.org/XML/1998/namespace
-        ANYATTR => "AnySimple", }, ],
-
-    # is a xsd:ID
-    Id => "id_0", },
+        ], }, ], },
 
   # sequence of xenc_ReferenceList, xenc_CarriedKeyName
 
@@ -278,15 +304,15 @@
     [ {
         # is a xenc:ReferenceType
         xenc_DataReference =>
-        { # sequence of ANY
+        { # is a xsd:anyURI
+          # attribute URI is required
+          URI => "http://example.com",
+
+          # sequence of ANY
 
           # any element not in xenc:
           # occurs any number of times
-          ANY => [ "Anything", ],
-
-          # is a xsd:anyURI
-          # attribute URI is required
-          URI => "http://example.com", },
+          ANY => [ "Anything", ], },
 
         # is a xenc:ReferenceType
         # complex structure shown above
@@ -295,19 +321,4 @@
 
   # is a xsd:string
   # is optional
-  xenc_CarriedKeyName => "example",
-
-  # is a xsd:ID
-  Id => "id_0",
-
-  # is a xsd:anyURI
-  Type => "http://example.com",
-
-  # is a xsd:string
-  MimeType => "example",
-
-  # is a xsd:anyURI
-  Encoding => "http://example.com",
-
-  # is a xsd:string
-  Recipient => "example", }
+  xenc_CarriedKeyName => "example", }

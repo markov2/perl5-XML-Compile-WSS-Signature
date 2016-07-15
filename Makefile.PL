@@ -3,7 +3,7 @@ use ExtUtils::MakeMaker;
 
 use 5.008;
 
-my $version = '2.01';
+my $version = '2.02';
 
 WriteMakefile
  ( NAME	 	=> 'XML::Compile::WSS::Signature'
@@ -14,7 +14,7 @@ WriteMakefile
      , XML::Compile::Cache  => '0.995'
      , XML::Compile::SOAP   => '2.33'
      , XML::Compile::C14N   => '0.93'
-     , XML::Compile::WSS    => '1.09'
+     , XML::Compile::WSS    => '1.13'
 
      , Log::Report          => '0.92'
      , Test::More           => 0.54

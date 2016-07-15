@@ -7,13 +7,14 @@ use Log::Report 'xml-compile-wss-sig';
 
 use XML::Compile::WSS::Util   qw/:wsm10 :wsm11 :xtp10/;
 use XML::Compile::WSS::SecToken::X509v3 ();
+use Crypt::OpenSSL::X509      qw/FORMAT_ASN1/;
 
 =chapter NAME
 XML::Compile::WSS::KeyInfo - handling WSS key info structures
 
 =chapter SYNOPSIS
   # Not for end-users
-  my $sig = XML::Compile::WSS::Signature->new(key_info => HASH);
+  my $sig = XML::Compile::WSS::Signature->new(key_info => $config);
   my $ki  = $sig->keyInfo;
 
 =chapter DESCRIPTION
@@ -25,9 +26,9 @@ tokens and keyinfo references to these tokens in the XML message.
 
 =section Constructors
 
-=c_method new OPTIONS
+=c_method new %options
 End-user should use M<XML::Compile::WSS::Signature::new(key_info)> to pass
-a HASH of OPTIONS.  These options do not have accessors yet.
+a HASH of %options.  These options do not have accessors (yet).
 =cut
 
 sub new(@) { my $class = shift; (bless {}, $class)->init({@_}) }
@@ -62,7 +63,7 @@ sub config() { my $c = shift->{XCWK_config}; wantarray ? %$c : $c }
 #-----------------------------
 =section Token administration
 
-=method addToken TOKEN, [TOKEN...]
+=method addToken $token, [$token...]
 =cut
 
 sub addToken($)
@@ -71,7 +72,7 @@ sub addToken($)
     $self;
 }
 
-=method findToken OPTIONS
+=method findToken %options
 
 =option  fingerprint BINARY
 =default fingerprint C<undef>
@@ -114,7 +115,7 @@ sub tokens() { @{shift->{XCWK_tokens}} }
 #-----------------
 =section Handlers
 
-=method getTokens WSS, OPTIONS
+=method getTokens $wss, %options
 Not for end-users.  Returns a CODE which needs to be called with a parsed
 incoming message.
 
@@ -252,7 +253,7 @@ sub _get_str_uri($$)  # SECTOKREF_URI
     };
 }
 
-=method builder WSS, OPTIONS
+=method builder $wss, %options
 Not for end-users.  Returns a CODE which will be called to produce the
 token representation in some output message.
 
@@ -275,7 +276,8 @@ sub builder($%)
       ( KEYNAME         => '_make_keyname'
       , SECTOKREF_KEYID => '_make_sectokref_keyid'
       , SECTOKREF_URI   => '_make_sectokref_uri'
-      , INCLUDE_BY_REF  => '_make_sectokref_uri'   # pre 2.00
+      , INCLUDE_BY_REF  => '_make_sectokref_uri'   # name is pre 2.00
+      , X509DATA        => '_make_x509data'
       );
 
     my $handler = $str_handlers{$type}
@@ -301,6 +303,37 @@ sub _make_keyname($$$)
     };
 }
 
+sub _make_x509data($$$)
+{   my ($self, $wss, $args) = @_;
+    my $as = $args->{x509data_type} || 'ASN1DER';
+
+    my $put
+      = $as eq 'ASN1DER'
+      ? sub { ds_X509Certificate => $_[0]->as_string(FORMAT_ASN1) }
+      : $as eq 'SERIAL'
+      ? sub { ds_X509IssuerSerial =>
+                { ds_X509IssuerName   => $_[0]->issuer
+                , ds_X509SerialNumber => $_[0]->serial }
+            }
+      : $as eq 'SKI'     ? sub { ds_X509SKI => $_[0]->hash}
+      : $as eq 'SUBJECT' ? sub { ds_X509SubjectName => $_[0]->subject }
+      : error __x"write key-info as X509Data, unknown format `{name}'"
+          , name => $as;
+
+      # No idea how we can use this Cert Revocation List, ds_X509CRL
+      # Other elements, not in ds:, not (yet) supported for writing
+
+    # This routine can handle an ARRAY, but the rest of the module
+    # probably not.
+    sub {
+        my ($doc, $token, $sec) = @_;
+        my @data = map $put->($_)
+           , ref $token eq 'ARRAY' ? @$token : $token;
+
+        +{ seq_ds_X509IssuerSerial => \@data }
+    };
+}
+
 sub _make_sectokref($$$)
 {   my ($self, $wss, $args) = @_;
     my $refid  = $args->{sectokref_id};
@@ -310,7 +343,7 @@ sub _make_sectokref($$$)
 
     sub {
         my ($doc, $token, $sec, $payload) = @_;
-        my $ref = $refw->($doc, +{wsu_Id => $refid, Usage => $usage
+        my $ref = $refw->($doc, +{wsu_Id => $refid, wsse_Usage => $usage
          , cho_any => $payload});
         +{ 'wsse:SecurityTokenReference' => $ref };
     };
@@ -362,6 +395,7 @@ sub _make_sectokref_uri($$$)
 
         if($intern && $token->can('asBinary'))
         {   (my $id = $uri) =~ s/^#//;
+
             my $bst = $bstw->($doc,
              +{ wsu_Id       => $id
               , ValueType    => $type
@@ -383,13 +417,58 @@ sub _make_sectokref_uri($$$)
 
 On the top level, we have the following options:
 
-  keyinfo_id          an xsd:ID value for the Id attribute (namespaceless)
+  keyinfo_id STRING       an xsd:ID value for the Id attribute (namespaceless)
 
 =subsection KEYNAME
 
 =subsection X509DATA
 
-Currently only read-support for M<Net::Domain::SMD>.
+This key-info type inlines one or more X509 certificates, in base64
+encoding.
+
+Additional options:
+
+  x509data_type TYPE      read below, default ASN1DER
+
+When you use the C<X509DATA> method to publish your key, you can specify
+the C<x509data_type>
+
+  SERIAL                  issuer name and cert serial number
+  SKI                     subject key identifier (subject hash)
+  SUBJECT                 subject name
+  ASN1DER                  base64 encoded full public certificate
+  CRL                     certification revocation list not supported (yet)
+
+As example, you may look at M<Net::Domain::SMD::Schema>, which uses this
+key storage model for an enveloped signature.
+
+=example create X509Data key-info
+
+  my $sig = XML::Compile::WSS::Signature->new
+    ( schema     => $schemas
+    , prepare    => 'WRITER'
+    , ...
+    , key_info   =>
+        { publish_token  => 'X509DATA'
+        , x509data_type  => 'SERIAL'
+        };
+    );
+
+=example X509Data in a message, type=ASN1DER
+
+  my $sig = XML::Compile::WSS::Signature->new
+    ( ...
+    , publish_token => 'X509DATA'   # smart use of defaults
+    );
+
+  <ds:Signature>
+    ...
+    <ds:KeyInfo Id="some-key-id">
+      <ds:X509Data>
+        <ds:X509Certificate>MII...</ds:X509Certificate>
+      </ds:X509Data>
+    </ds:KeyInfo>
+  </ds:Signature>
 
 =subsection SecurityTokenReference
 

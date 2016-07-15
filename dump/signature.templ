@@ -2,7 +2,7 @@
 #     {http://www.w3.org/2000/09/xmldsig#}Signature
 #
 # Produced by XML::Compile::Translate::Template version undef
-#          on Fri Oct 11 14:43:09 2013
+#          on Sat Jul 16 01:29:18 2016
 #
 # BE WARNED: in most cases, the example below cannot be used without
 # interpretation.  The comments will guide you.
@@ -11,29 +11,41 @@
 # xmlns:wsse      http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd
 
 # is a ds:SignatureType
-{ # sequence of ds_SignedInfo, ds_SignatureValue, ds_KeyInfo,
+{ # is a xsd:ID
+  # becomes an attribute
+  Id => "id_0",
+
+  # sequence of ds_SignedInfo, ds_SignatureValue, ds_KeyInfo,
   #   ds_Object
 
   # is a ds:SignedInfoType
   ds_SignedInfo =>
-  { # sequence of ds_CanonicalizationMethod, ds_SignatureMethod,
+  { # is a xsd:ID
+    # becomes an attribute
+    Id => "id_0",
+
+    # sequence of ds_CanonicalizationMethod, ds_SignatureMethod,
     #   ds_Reference
 
     # is a ds:CanonicalizationMethodType
     ds_CanonicalizationMethod =>
-    { # sequence of ANY
+    { # is a xsd:anyURI
+      # attribute Algorithm is required
+      Algorithm => "http://example.com",
+
+      # sequence of ANY
 
       # any element in any namespace
       # occurs any number of times
-      ANY => [ "Anything", ],
-
-      # is a xsd:anyURI
-      # attribute Algorithm is required
-      Algorithm => "http://example.com", },
+      ANY => [ "Anything", ], },
 
     # is a ds:SignatureMethodType
     ds_SignatureMethod =>
-    { # sequence of ds_HMACOutputLength, ANY
+    { # is a xsd:anyURI
+      # attribute Algorithm is required
+      Algorithm => "http://example.com",
+
+      # sequence of ds_HMACOutputLength, ANY
 
       # is a xsd:integer
       # is optional
@@ -41,16 +53,24 @@
 
       # any element not in ds:
       # occurs any number of times
-      ANY => [ "Anything", ],
-
-      # is a xsd:anyURI
-      # attribute Algorithm is required
-      Algorithm => "http://example.com", },
+      ANY => [ "Anything", ], },
 
     # is a ds:ReferenceType
     # occurs 1 <= # <= unbounded times
     ds_Reference =>
-    [ { # sequence of ds_Transforms, ds_DigestMethod, ds_DigestValue
+    [ { # is a xsd:ID
+        # becomes an attribute
+        Id => "id_0",
+
+        # is a xsd:anyURI
+        # becomes an attribute
+        URI => "http://example.com",
+
+        # is a xsd:anyURI
+        # becomes an attribute
+        Type => "http://example.com",
+
+        # sequence of ds_Transforms, ds_DigestMethod, ds_DigestValue
 
         # is a ds:TransformsType
         # is optional
@@ -60,7 +80,11 @@
           # is a ds:TransformType
           # occurs 1 <= # <= unbounded times
           ds_Transform =>
-          [ { # choice of ANY, ds_XPath
+          [ { # is a xsd:anyURI
+              # attribute Algorithm is required
+              Algorithm => "http://example.com",
+
+              # choice of ANY, ds_XPath
               # occurs any number of times
               cho_any => 
               [ {
@@ -69,43 +93,28 @@
 
                   # is a xsd:string
                   ds_XPath => "example", },
-              ],
-
-              # is a xsd:anyURI
-              # attribute Algorithm is required
-              Algorithm => "http://example.com", }, ], },
+              ], }, ], },
 
         # is a ds:DigestMethodType
         ds_DigestMethod =>
-        { # sequence of ANY
+        { # is a xsd:anyURI
+          # attribute Algorithm is required
+          Algorithm => "http://example.com",
+
+          # sequence of ANY
 
           # any element not in ds:
           # occurs any number of times
-          ANY => [ "Anything", ],
-
-          # is a xsd:anyURI
-          # attribute Algorithm is required
-          Algorithm => "http://example.com", },
+          ANY => [ "Anything", ], },
 
         # is a xsd:base64Binary
-        ds_DigestValue => "decoded bytes",
-
-        # is a xsd:ID
-        Id => "id_0",
-
-        # is a xsd:anyURI
-        URI => "http://example.com",
-
-        # is a xsd:anyURI
-        Type => "http://example.com", }, ],
-
-    # is a xsd:ID
-    Id => "id_0", },
+        ds_DigestValue => "decoded bytes", }, ], },
 
   # is a ds:SignatureValueType
   # ds_SignatureValue is simple value with attributes
   ds_SignatureValue =>
   { # is a xsd:ID
+    # becomes an attribute
     Id => "id_0",
 
     # is a xsd:base64Binary
@@ -115,7 +124,11 @@
   # is a ds:KeyInfoType
   # is optional
   ds_KeyInfo =>
-  { # choice of ds_KeyName, ds_KeyValue, ds_RetrievalMethod,
+  { # is a xsd:ID
+    # becomes an attribute
+    Id => "id_0",
+
+    # choice of ds_KeyName, ds_KeyValue, ds_RetrievalMethod,
     #   ds_X509Data, ds_PGPData, ds_SPKIData, ds_MgmtData, ANY
     # occurs 1 <= # <= unbounded times
     cho_ds_KeyName => 
@@ -175,18 +188,20 @@
 
         # is a ds:RetrievalMethodType
         ds_RetrievalMethod =>
-        { # sequence of ds_Transforms
+        { # is a xsd:anyURI
+          # becomes an attribute
+          URI => "http://example.com",
+
+          # is a xsd:anyURI
+          # becomes an attribute
+          Type => "http://example.com",
+
+          # sequence of ds_Transforms
 
           # is a ds:TransformsType
           # complex structure shown above
           # is optional
-          ds_Transforms => [{},],
-
-          # is a xsd:anyURI
-          URI => "http://example.com",
-
-          # is a xsd:anyURI
-          Type => "http://example.com", },
+          ds_Transforms => [{},], },
 
         # is a ds:X509DataType
         ds_X509Data =>
@@ -268,30 +283,27 @@
 
         # any element not in ds:
         ANY => "Anything", },
-    ],
-
-    # is a xsd:ID
-    Id => "id_0", },
+    ], },
 
   # is a ds:ObjectType
   # occurs any number of times
   ds_Object =>
-  [ { # sequence of ANY
+  [ { # is a xsd:ID
+      # becomes an attribute
+      Id => "id_0",
+
+      # is a xsd:string
+      # becomes an attribute
+      MimeType => "example",
+
+      # is a xsd:anyURI
+      # becomes an attribute
+      Encoding => "http://example.com",
+
+      # sequence of ANY
       # occurs any number of times
       seq_any => 
       [ {
           # any element in any namespace
           ANY => "Anything", },
-      ],
-
-      # is a xsd:ID
-      Id => "id_0",
-
-      # is a xsd:string
-      MimeType => "example",
-
-      # is a xsd:anyURI
-      Encoding => "http://example.com", }, ],
-
-  # is a xsd:ID
-  Id => "id_0", }
+      ], }, ], }
