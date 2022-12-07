@@ -1,8 +1,12 @@
-use warnings;
-use strict;
+# This code is part of distribution XML-Compile-WSS-Signature.
+# Meta-POD processed with OODoc into POD and HTML manual-pages.  See README.md
+# Copyright Mark Overmeer.  Licensed under the same terms as Perl itself.
 
 package XML::Compile::WSS::Sign::RSA;
 use base 'XML::Compile::WSS::Sign';
+
+use warnings;
+use strict;
 
 use Log::Report 'xml-compile-wss-sig';
 
@@ -250,6 +254,7 @@ sub decrypt(@)
 =method check $bytes, $signature
 =cut
 
+#XXX Unused?  See checker()
 sub check($$)
 {   my ($self, $text, $signature) = @_;
     my $rsa = $self->publicKeyRSA

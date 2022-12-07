@@ -1,10 +1,16 @@
 
 ==== version history of XML::Compile:WSS::Signature
 
+version 2.03:
+
+	Improvements:
+	- converted to Git and GitHUB
+
 version 2.02: Sat 16 Jul 01:29:54 CEST 2016
 
 	Fixes:
 	- do not die on unused header elements.
+	- Usage not used. rt.cpan.org#105343 [Cheolgoo Kang]
 
 	Improvements:
 	- change documentation style.
