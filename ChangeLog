@@ -3,6 +3,10 @@
 
 version 2.03:
 
+	Fixes:
+	- new test PEM files, because the old set used a padding which got
+	  unsupported. [Andreas Mock]
+
 	Improvements:
 	- converted to Git and GitHUB
 
