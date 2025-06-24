@@ -10,6 +10,7 @@ version 2.03:
 	Improvements:
 	- converted to Git and GitHUB
 	- add .gitignore
+	- update README.md
 
 version 2.02: Sat 16 Jul 01:29:54 CEST 2016
 
