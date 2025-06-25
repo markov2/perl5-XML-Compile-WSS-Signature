@@ -162,37 +162,6 @@ sub getKey($%)
     };
 }
 
-=c_method getChecker $wss, %options
-=cut
-
-sub getChecker($%)
-{   my ($class, $wss, %args) = @_;
-    my $get_encr = $class->getEncrypter($wss, %args);
-
-    sub {
-        my ($h, $sec, $value) = @_;
-        my $encr = $get_encr->($h, $sec);
-        my $id   = $encr->id;
-
-        # xenc_CipherReference not (yet) supported
-        my $outcome = $h->{xenc_CipherData}{xenc_CipherValue}
-            or error __x"cipher data not understood for {id}", id => $id;
-
-        my $got = $encr->signer->encrypt($value);
-
-#use MIME::Base64;
-#warn "OUT=", encode_base64 $outcome;
-#warn "GOT=", encode_base64 $got;
-# This warning is currently produced in t/21enckey.t, but that example
-# may be wrong... or something else... no idea yet.
-
-        $got eq $outcome
-            or warning __x"check of crypto checksum failed {id}", id => $id;
-
-        1;
-    };
-}
-
 sub builder($%)
 {   my ($self, $wss, %args) = @_;
 
