@@ -4,9 +4,6 @@ $VAR1 = {
 šƒ5Ë§Çîù]ÛÃ-mœ,¤‚°Ä›ŠãC»œ6Š¦Ü!úb«ÓQ»"á'
   },
   Id => 'EK',
-  xenc_EncryptionMethod => {
-    Algorithm => 'http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p'
-  },
   ds_KeyInfo => {
     cho_ds_KeyName => [
       {
@@ -17,13 +14,16 @@ $VAR1 = {
                 _ => 'MTI6RjQ6NzY6NjY6QzI6NzA6RjM6MUU6OTk6RDQ6QjY6MjE6NTg6RjQ6RTE6MzM6NjQ6N0U6OTE6
 MDA=
 ',
-                ValueType => 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1',
-                EncodingType => 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary'
+                EncodingType => 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary',
+                ValueType => 'http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1'
               }
             }
           ]
         }
       }
     ]
+  },
+  xenc_EncryptionMethod => {
+    Algorithm => 'http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p'
   }
 };
